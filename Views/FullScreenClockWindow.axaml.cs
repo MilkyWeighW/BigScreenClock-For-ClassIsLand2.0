@@ -5,10 +5,10 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
-using LargeScreenClock.Services;
-using LargeScreenClock.ViewModels;
+using LargeScreenClockRevived.Services;
+using LargeScreenClockRevived.ViewModels;
 
-namespace LargeScreenClock.Views;
+namespace LargeScreenClockRevived.Views;
 
 /// <summary>
 /// 全屏窗口。窗口本身只管窗口的事（全屏、躲鼠标、Esc/F11 退出），

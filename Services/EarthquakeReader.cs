@@ -1,11 +1,11 @@
 using System.Collections;
 using System.Reflection;
 using ClassIsland.Core.Abstractions.Services;
-using LargeScreenClock.Helpers;
-using LargeScreenClock.Models;
+using LargeScreenClockRevived.Helpers;
+using LargeScreenClockRevived.Models;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 从「地震预警」插件（denglihong.EarthquakeWarning）的实时状态里读地震数据。

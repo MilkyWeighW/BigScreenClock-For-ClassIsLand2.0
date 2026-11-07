@@ -7,7 +7,7 @@ using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Gdi;
 using Windows.Win32.UI.WindowsAndMessaging;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 把主屏当前画面截成一张位图，同时整体压暗，用来给「纯色/半透明」这类背景当底图

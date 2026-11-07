@@ -1,6 +1,6 @@
 using System;
 
-namespace LargeScreenClock.NoiseDetection;
+namespace LargeScreenClockRevived.NoiseDetection;
 
 /// <summary>
 /// 音量条的档位显示映射（纯算法，零外部依赖，供单元测试源文件编译）。

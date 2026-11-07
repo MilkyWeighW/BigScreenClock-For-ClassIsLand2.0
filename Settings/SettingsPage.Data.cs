@@ -8,12 +8,12 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Windows.Input;
-using LargeScreenClock.Models;
-using LargeScreenClock.Services;
-using LargeScreenClock.ViewModels;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.Services;
+using LargeScreenClockRevived.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LargeScreenClock.Settings;
+namespace LargeScreenClockRevived.Settings;
 
 public partial class SettingsPage
 {

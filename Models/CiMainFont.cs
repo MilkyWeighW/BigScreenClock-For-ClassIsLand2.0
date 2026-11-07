@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace LargeScreenClock.Models;
+namespace LargeScreenClockRevived.Models;
 
 /// <summary>
 /// 读取 ClassIsland 主界面所用字体（CI 设置 → 外观 → 主界面字体），

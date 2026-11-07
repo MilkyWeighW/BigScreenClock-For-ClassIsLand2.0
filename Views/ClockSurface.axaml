@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="LargeScreenClock.Views.ClockSurface"
+             x:Class="LargeScreenClockRevived.Views.ClockSurface"
              xmlns:controls1="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core"
-             xmlns:views="clr-namespace:LargeScreenClock.Views"
+             xmlns:views="clr-namespace:LargeScreenClockRevived.Views"
              xmlns:sys="using:System"
              FontFamily="Microsoft YaHei,SimHei,sans-serif">
 

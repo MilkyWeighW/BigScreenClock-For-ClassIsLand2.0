@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="LargeScreenClock.Views.BackgroundLayer"
+             x:Class="LargeScreenClockRevived.Views.BackgroundLayer"
              IsHitTestVisible="False">
 
     <!-- 背景层的全部内容都在这里：一条纯色底、旧画面、目标画面、明暗遮罩。

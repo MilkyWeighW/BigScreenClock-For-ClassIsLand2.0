@@ -5,7 +5,7 @@ using Microsoft.Win32;
 using Windows.Win32;
 using Windows.Win32.UI.WindowsAndMessaging;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 读当前桌面壁纸，并把壁纸解码成可直接当背景用的位图。

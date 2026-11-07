@@ -6,11 +6,11 @@
 using System.ComponentModel;
 using Avalonia.Media;
 using Avalonia.Styling;
-using LargeScreenClock.Helpers;
-using LargeScreenClock.Models;
-using LargeScreenClock.Services;
+using LargeScreenClockRevived.Helpers;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.Services;
 
-namespace LargeScreenClock.Settings;
+namespace LargeScreenClockRevived.Settings;
 
 public partial class SettingsPage
 {

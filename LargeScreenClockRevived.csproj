@@ -5,9 +5,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <CreateCipx>true</CreateCipx>
-        <RootNamespace>LargeScreenClock</RootNamespace>
-        <!-- 程序集与插件包对外名（含连字符），命名空间仍是 LargeScreenClock -->
-        <AssemblyName>Large-Screen-Clock</AssemblyName>
+        <RootNamespace>LargeScreenClockRevived</RootNamespace>
+        <!-- 程序集与插件包对外名（含连字符），命名空间仍是 LargeScreenClockRevived -->
+        <AssemblyName>LargeScreenClockRevived</AssemblyName>
         <!-- SDK 的 CreateCipx 默认用工程名，这里让包名跟随 AssemblyName -->
         <CipxPackageOutputName>$(AssemblyName).cipx</CipxPackageOutputName>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>

@@ -8,15 +8,17 @@
 
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using ClassIsland.Core.Controls;
-using LargeScreenClock.Models;
+using LargeScreenClockRevived.Models;
 using FluentAvalonia.UI.Controls;
 
-namespace LargeScreenClock.Settings;
+namespace LargeScreenClockRevived.Settings;
 
 public partial class SettingsPage
 {
@@ -116,7 +118,10 @@ public partial class SettingsPage
     private void InitializeComponentItems()
     {
         foreach (var item in ComponentItems)
+        {
             item.Layout.PropertyChanged -= OnComponentLayoutChanged;
+            item.DetachLayout();
+        }
         ComponentItems.Clear();
 
         for (var i = 0; i < ComponentCatalog.All.Count; i++)
@@ -142,7 +147,10 @@ public partial class SettingsPage
     private void RefreshComponentItemsAfterReset()
     {
         foreach (var item in ComponentItems)
+        {
             item.Layout.PropertyChanged -= OnComponentLayoutChanged;
+            item.DetachLayout();
+        }
         ComponentItems.Clear();
 
         for (var i = 0; i < ComponentCatalog.All.Count; i++)
@@ -162,7 +170,10 @@ public partial class SettingsPage
     {
         if (_componentLayoutsHooked) return;
         foreach (var item in ComponentItems)
+        {
             item.Layout.PropertyChanged += OnComponentLayoutChanged;
+            item.AttachLayout();
+        }
         _componentLayoutsHooked = true;
     }
 
@@ -170,7 +181,10 @@ public partial class SettingsPage
     {
         if (!_componentLayoutsHooked) return;
         foreach (var item in ComponentItems)
+        {
             item.Layout.PropertyChanged -= OnComponentLayoutChanged;
+            item.DetachLayout();
+        }
         _componentLayoutsHooked = false;
     }
 
@@ -407,10 +421,16 @@ public partial class SettingsPage
 
 /// <summary>
 /// 「组件」页签里一行组件的绑定对象。
-/// 设置项的读写都直接落在 <see cref="Layout"/> 上（它是 INotifyPropertyChanged 的，滑块双向绑定即可），
-/// 这里只负责把固定信息（名字、说明、图标）和那一份设置拼在一起。
+/// 设置项的读写都直接落在 <see cref="Layout"/> 上（它是 INotifyPropertyChanged 的），
+/// 这里除了固定信息（名字、说明、图标）之外，再提供「百分比滑块 + 可键入输入框」用的两套包装属性：
+/// <list type="bullet">
+/// <item>XxxPercent（double）：滑块绑这个，单位是百分比（缩放 10~200、偏移 -100~100、不透明度 0~100）；</item>
+/// <item>XxxPercentText（string）：输入框绑这个，显示规范文本（如「120%」「-35%」），
+/// 键入时按不变文化解析，越界自动夹回范围，解析失败则丢弃输入、恢复原文本。</item>
+/// </list>
+/// Layout 一变就同步通知这两套属性，所以拖滑块时输入框里的数字会跟着走。
 /// </summary>
-public sealed class ComponentSettingItem
+public sealed class ComponentSettingItem : INotifyPropertyChanged
 {
     public ComponentSettingItem(ComponentDescriptor descriptor, ComponentLayout layout, int catalogIndex)
     {
@@ -419,6 +439,8 @@ public sealed class ComponentSettingItem
         CatalogIndex = catalogIndex;
         // ClassIsland 的 Fluent 图标源：直接给码点，形状与官方设置页里那些图标一致。
         IconSource = new FluentIconSource(descriptor.Glyph);
+        // 布局对象活得比行久：行被重建时要先 DetachLayout()，免得旧行被 Layout 一直挂着。
+        AttachLayout();
     }
 
     /// <summary>组件固定描述（id/名字/说明/图标码点）。</summary>
@@ -439,4 +461,150 @@ public sealed class ComponentSettingItem
 
     /// <summary>图标码点（组件条里用 IconText 直接给字形）。</summary>
     public string Glyph => Descriptor.Glyph;
+
+    // ================= 百分比包装属性（滑块 + 输入框） =================
+
+    /// <summary>缩放百分比（10~200），滑块绑它。</summary>
+    public double ScalePercent
+    {
+        get => Layout.Scale * 100;
+        // 百分比一律落到整 1%（拖动滑块的手感与输入框文本一致，不会出现「文本 137% 实际 137.4%」）。
+        set => Layout.Scale = SnapPercent(Math.Clamp(value, ComponentLayout.MinScale * 100, ComponentLayout.MaxScale * 100)) / 100;
+    }
+
+    /// <summary>水平偏移百分比（-100~100），直接对应 Layout.OffsetX。</summary>
+    public double OffsetXPercent
+    {
+        get => Layout.OffsetX;
+        set => Layout.OffsetX = SnapPercent(Math.Clamp(value, ComponentLayout.MinOffsetPercent, ComponentLayout.MaxOffsetPercent));
+    }
+
+    /// <summary>垂直偏移百分比（-100~100），直接对应 Layout.OffsetY。</summary>
+    public double OffsetYPercent
+    {
+        get => Layout.OffsetY;
+        set => Layout.OffsetY = SnapPercent(Math.Clamp(value, ComponentLayout.MinOffsetPercent, ComponentLayout.MaxOffsetPercent));
+    }
+
+    /// <summary>不透明度百分比（0~100），滑块绑它。</summary>
+    public double OpacityPercent
+    {
+        get => Layout.Opacity * 100;
+        set => Layout.Opacity = SnapPercent(Math.Clamp(value, ComponentLayout.MinOpacity * 100, ComponentLayout.MaxOpacity * 100)) / 100;
+    }
+
+    /// <summary>缩放的规范文本（输入框绑它）。</summary>
+    public string ScalePercentText
+    {
+        get => FormatPercent(ScalePercent);
+        set => ApplyPercentText(value, nameof(ScalePercentText), v => ScalePercent = v);
+    }
+
+    /// <summary>水平偏移的规范文本（输入框绑它）。</summary>
+    public string OffsetXPercentText
+    {
+        get => FormatPercent(OffsetXPercent);
+        set => ApplyPercentText(value, nameof(OffsetXPercentText), v => OffsetXPercent = v);
+    }
+
+    /// <summary>垂直偏移的规范文本（输入框绑它）。</summary>
+    public string OffsetYPercentText
+    {
+        get => FormatPercent(OffsetYPercent);
+        set => ApplyPercentText(value, nameof(OffsetYPercentText), v => OffsetYPercent = v);
+    }
+
+    /// <summary>不透明度的规范文本（输入框绑它）。</summary>
+    public string OpacityPercentText
+    {
+        get => FormatPercent(OpacityPercent);
+        set => ApplyPercentText(value, nameof(OpacityPercentText), v => OpacityPercent = v);
+    }
+
+    /// <summary>挂上对 Layout 的监听（重复调用无副作用）。</summary>
+    public void AttachLayout()
+    {
+        Layout.PropertyChanged -= OnLayoutPropertyChanged;
+        Layout.PropertyChanged += OnLayoutPropertyChanged;
+    }
+
+    /// <summary>摘掉对 Layout 的监听（页面重建组件行/暂时离开时调用，防止旧行被设置对象长期引用）。</summary>
+    public void DetachLayout() => Layout.PropertyChanged -= OnLayoutPropertyChanged;
+
+    /// <summary>
+    /// 解析失败就只通知一次（让输入框退回原文本）；成功则写入并再通知一次，把文本规范成「120%」这种形式。
+    /// </summary>
+    private void ApplyPercentText(string? text, string propertyName, Action<double> apply)
+    {
+        if (!TryParsePercent(text, out var value))
+        {
+            OnPropertyChanged(propertyName);
+            return;
+        }
+
+        apply(value);
+        OnPropertyChanged(propertyName);
+    }
+
+    /// <summary>允许「120」「120%」「120 ％」，一律按不变文化解析（避免小数点随系统语言变成逗号）。</summary>
+    private static bool TryParsePercent(string? text, out double value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        var trimmed = text.Trim();
+        if (trimmed.EndsWith('%') || trimmed.EndsWith('％'))
+            trimmed = trimmed[..^1].Trim();
+
+        return double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    /// <summary>滑块是连续的，但语义是 1% 一档：写回设置前先取整，显示文本才与实际值一致。</summary>
+    private static double SnapPercent(double value) => Math.Round(value, MidpointRounding.AwayFromZero);
+
+    private static string FormatPercent(double value)
+    {
+        var rounded = Math.Round(value, MidpointRounding.AwayFromZero);
+        if (Math.Abs(rounded) < 0.5) rounded = 0; // 避免出现「-0%」
+        return rounded.ToString("0", CultureInfo.InvariantCulture) + "%";
+    }
+
+    private void OnLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(ComponentLayout.Scale):
+                OnPropertyChanged(nameof(ScalePercent));
+                OnPropertyChanged(nameof(ScalePercentText));
+                break;
+            case nameof(ComponentLayout.OffsetX):
+                OnPropertyChanged(nameof(OffsetXPercent));
+                OnPropertyChanged(nameof(OffsetXPercentText));
+                break;
+            case nameof(ComponentLayout.OffsetY):
+                OnPropertyChanged(nameof(OffsetYPercent));
+                OnPropertyChanged(nameof(OffsetYPercentText));
+                break;
+            case nameof(ComponentLayout.Opacity):
+                OnPropertyChanged(nameof(OpacityPercent));
+                OnPropertyChanged(nameof(OpacityPercentText));
+                break;
+            case null:
+            case "":
+                OnPropertyChanged(nameof(ScalePercent));
+                OnPropertyChanged(nameof(ScalePercentText));
+                OnPropertyChanged(nameof(OffsetXPercent));
+                OnPropertyChanged(nameof(OffsetXPercentText));
+                OnPropertyChanged(nameof(OffsetYPercent));
+                OnPropertyChanged(nameof(OffsetYPercentText));
+                OnPropertyChanged(nameof(OpacityPercent));
+                OnPropertyChanged(nameof(OpacityPercentText));
+                break;
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

@@ -1,4 +1,4 @@
-# 03 · ViewModel 与设置系统分析（大屏时钟 / LargeScreenClock）
+# 03 · ViewModel 与设置系统分析（大屏时钟 / LargeScreenClockRevived）
 
 > 范围：`ViewModels\FullScreenClockViewModel.cs`（2231 行，全项目最大）、`ViewModels\LevelSlotCalculator.cs`、`ViewModels\NoiseLevelSlotItem.cs`、`Models\PluginSettings.cs`（680 行）、`Settings\SettingsPage.axaml(.cs)`（730 / 1515 行）。
 > 为说清调用关系，引用 `Models\ProgressCalculator.cs`、`Models\ClassStartSchedule.cs`、`Models\ReminderData.cs`、`Models\ClockTheme.cs`、`Helpers\ClockThemeApplier.cs`、`NoiseDetection\*.cs`、`Services\DecibelMeterService.cs`、`Services\CiWeatherReader.cs`、`Plugin.cs`、`Views\ClockSurface.axaml(.cs)`。
@@ -502,7 +502,7 @@ _settings.SkipFirst3Min && (NowVirtual - _classStartTime).TotalSeconds < _settin
 
 ### 6.1 结构
 
-- `[SettingsPageInfo("com.bigscreen.clock.settings", "大屏时钟", SettingsPageCategory.External)]` + `[FullWidthPage]`（`Settings\SettingsPage.axaml.cs:27-30`）：全宽页，标题固定靠左以对齐卡片。
+- `[SettingsPageInfo("com.largescreenclockrevived.settings", "大屏时钟", SettingsPageCategory.External)]` + `[FullWidthPage]`（`Settings\SettingsPage.axaml.cs:27-30`）：全宽页，标题固定靠左以对齐卡片。
 - `class SettingsPage : SettingsPageBase, INotifyPropertyChanged`（:31）；构造函数 `InitializeComponent()` → `_settings = Plugin.Settings!` → 查地震插件 → 取单例 VM（:38-43）→ `DataContext = this`（:56）。
 - `Loaded` 挂三组 hook：位置限位、布局滑块、共享事件订阅 + 弹「致用户的一封信」；`Unloaded` 全部摘除（:45-54）——注释说明 CI 每次打开都可能新建页面，不摘会泄漏（:45-47）。
 - 左右两栏：`<Grid ColumnDefinitions="*,360">`，左栏 `ScrollViewer` 里若干「卡片 Border」（用 CI 的 `CardBackgroundFillColorDefaultBrush` / `CardStrokeColorDefaultBrush` / 圆角 4），右栏预览 + 「进入全屏时钟」按钮（`Settings\SettingsPage.axaml:15-24, 699-728`）。

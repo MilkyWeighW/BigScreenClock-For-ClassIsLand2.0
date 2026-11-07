@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
-namespace LargeScreenClock.Models;
+namespace LargeScreenClockRevived.Models;
 
 /// <summary>
 /// 「组件」这一层的外观与位置设置：大屏上每个能单独调整的元素（时钟、日期、天气、音量条……）
@@ -26,11 +26,11 @@ public sealed class ComponentLayout : INotifyPropertyChanged
     /// <summary>缩放倍率上限。</summary>
     public const double MaxScale = 2.0;
 
-    /// <summary>水平/垂直偏移百分比下限。</summary>
-    public const double MinOffsetPercent = -50;
+    /// <summary>水平/垂直偏移百分比下限（-100 = 整整挪出一个屏宽/屏高）。</summary>
+    public const double MinOffsetPercent = -100;
 
-    /// <summary>水平/垂直偏移百分比上限。</summary>
-    public const double MaxOffsetPercent = 50;
+    /// <summary>水平/垂直偏移百分比上限（100 = 整整挪出一个屏宽/屏高）。</summary>
+    public const double MaxOffsetPercent = 100;
 
     /// <summary>不透明度下限（0 = 完全透明，看不见但还占着布局）。</summary>
     public const double MinOpacity = 0.0;
@@ -56,7 +56,7 @@ public sealed class ComponentLayout : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 水平偏移：占大屏宽度的百分比（-50 = 往左挪半屏，50 = 往右挪半屏）。
+    /// 水平偏移：占大屏宽度的百分比（-100 = 往左挪一整个屏宽，100 = 往右挪一整个屏宽）。
     /// 同样用 RenderTransform 做，自然布局（时钟/音量条那套上下限位）一个字节都不用改。
     /// </summary>
     public double OffsetX

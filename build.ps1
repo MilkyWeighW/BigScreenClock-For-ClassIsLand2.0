@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    大屏时钟（Large-Screen-Clock）插件构建脚本。
+    大屏时钟（LargeScreenClockRevived）插件构建脚本。
 
 .DESCRIPTION
     统一封装本项目（net8.0-windows）的 NuGet 还原、构建、插件打包与产物定位流程：
@@ -202,9 +202,9 @@ function Show-Help {
   pwsh -File ./build.ps1 -Configuration Debug -Dev
 
 产物：
-  bin/<Configuration>/net8.0-windows/Large-Screen-Clock.dll   插件程序集
+  bin/<Configuration>/net8.0-windows/LargeScreenClockRevived.dll   插件程序集
   bin/<Configuration>/net8.0-windows/manifest.yml                 已盖号的运行时清单
-  cipx/Large-Screen-Clock.cipx                                 插件包（同级 checksums.md 记录 MD5）
+  cipx/LargeScreenClockRevived.cipx                                 插件包（同级 checksums.md 记录 MD5）
 
 说明：
   * 需要 .NET SDK 8 或更高版本（目标框架 net8.0-windows）。
@@ -246,7 +246,7 @@ if ($csprojFiles.Count -gt 1) {
 $projectPath = $csprojFiles[0].FullName
 $projectName = [System.IO.Path]::GetFileNameWithoutExtension($csprojFiles[0].Name)
 # 程序集名与工程名不同（csproj 里 AssemblyName 带连字符），产物定位统一用这个
-$assemblyName = 'Large-Screen-Clock'
+$assemblyName = 'LargeScreenClockRevived'
 
 Write-Host ''
 Write-Host '大屏时钟构建脚本' -ForegroundColor White

@@ -10,9 +10,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using LargeScreenClock.ViewModels;
+using LargeScreenClockRevived.ViewModels;
 
-namespace LargeScreenClock.Settings;
+namespace LargeScreenClockRevived.Settings;
 
 public partial class SettingsPage
 {

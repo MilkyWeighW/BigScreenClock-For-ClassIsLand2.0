@@ -1,4 +1,4 @@
-namespace LargeScreenClock.Helpers;
+namespace LargeScreenClockRevived.Helpers;
 
 /// <summary>
 /// Stack Blur —— 用三角形权重 + 滑动窗口逼近高斯模糊，每像素 O(1)，一遍就够（不用多遍叠加）。

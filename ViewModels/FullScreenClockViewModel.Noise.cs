@@ -32,14 +32,14 @@ using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Icons;
 using ClassIsland.Core.Models.Components;
 using ClassIsland.Shared.Enums;
-using LargeScreenClock.Helpers;
-using LargeScreenClock.Models;
-using LargeScreenClock.NoiseDetection;
-using LargeScreenClock.Services;
-using LargeScreenClock.Views;
+using LargeScreenClockRevived.Helpers;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.NoiseDetection;
+using LargeScreenClockRevived.Services;
+using LargeScreenClockRevived.Views;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LargeScreenClock.ViewModels;
+namespace LargeScreenClockRevived.ViewModels;
 
 public partial class FullScreenClockViewModel : INotifyPropertyChanged
 {

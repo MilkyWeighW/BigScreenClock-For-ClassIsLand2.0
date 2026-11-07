@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using LargeScreenClock.Helpers;
+using LargeScreenClockRevived.Helpers;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 「模糊壁纸」的预渲染 + 两级缓存（内存 LRU + 磁盘 PNG），把
@@ -332,7 +332,7 @@ public static class WallpaperCacheService
         {
             // ConfigFolder 在插件 Initialize 之前是 null；早期调用（比如设置页预览）不能因此崩
             baseDirectory = Plugin.ConfigFolder
-                            ?? Path.Combine(Path.GetTempPath(), "LargeScreenClock");
+                            ?? Path.Combine(Path.GetTempPath(), "LargeScreenClockRevived");
         }
         catch
         {

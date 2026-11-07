@@ -1,12 +1,12 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using LargeScreenClock.Models;
+using LargeScreenClockRevived.Models;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Media.MediaFoundation;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 摄像头占用检测（Media Foundation 传感器活动接口，Windows 10 1703+）。

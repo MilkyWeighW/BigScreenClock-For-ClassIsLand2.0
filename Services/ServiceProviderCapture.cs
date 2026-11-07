@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 在应用启动时立即捕获 IServiceProvider，供 SettingsPage 等使用。

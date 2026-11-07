@@ -1,6 +1,6 @@
 using System;
 
-namespace LargeScreenClock.NoiseDetection;
+namespace LargeScreenClockRevived.NoiseDetection;
 
 /// <summary>一次持续事件在计数层的处理结果。</summary>
 public enum CountDecision

@@ -1,4 +1,4 @@
-namespace LargeScreenClock.Models;
+namespace LargeScreenClockRevived.Models;
 
 /// <summary>
 /// 数据语义色（吵闹计数、预警等级）在两套主题下的取值。
@@ -9,7 +9,7 @@ public static class SemanticColors
 {
     /// <summary>
     /// 「一般」计数与「正在记录：一般」提示的颜色：与音量条「一般」档**达到时**的档位文字同色
-    /// （<see cref="LargeScreenClock.ViewModels.LevelSlotCalculator.ReachedColorOf"/>，即填充色第 3 项），
+    /// （<see cref="LargeScreenClockRevived.ViewModels.LevelSlotCalculator.ReachedColorOf"/>，即填充色第 3 项），
     /// 两套主题同一支亮黄；未达到一般时档位文字是压暗的琥珀，两者不会混淆。
     /// 注意它本身很亮，#FFDE02 当文字放白底上对比度不足，改前先看真机。
     /// </summary>

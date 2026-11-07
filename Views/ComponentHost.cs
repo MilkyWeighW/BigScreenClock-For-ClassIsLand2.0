@@ -6,9 +6,9 @@ using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using LargeScreenClock.Models;
+using LargeScreenClockRevived.Models;
 
-namespace LargeScreenClock.Views;
+namespace LargeScreenClockRevived.Views;
 
 /// <summary>
 /// 一个「大屏组件」的通用外壳。

@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 全屏兜底：Avalonia 复用窗口 Hide→Show 之后，<c>WindowState</c> 属性可能还报 FullScreen，

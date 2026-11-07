@@ -1,4 +1,4 @@
-namespace LargeScreenClock.ViewModels;
+namespace LargeScreenClockRevived.ViewModels;
 
 /// <summary>
 /// 音量档位 → 索引/颜色的纯计算类（无 Avalonia 依赖，供单元测试源文件编译）。

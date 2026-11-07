@@ -1,6 +1,6 @@
 using System;
 
-namespace LargeScreenClock.NoiseDetection;
+namespace LargeScreenClockRevived.NoiseDetection;
 
 /// <summary>
 /// 平滑后的噪音等级。Noisy 同时覆盖显示上的「吵闹」和「嘈杂」。

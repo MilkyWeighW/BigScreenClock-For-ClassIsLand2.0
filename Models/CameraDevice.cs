@@ -1,4 +1,4 @@
-namespace LargeScreenClock.Models;
+namespace LargeScreenClockRevived.Models;
 
 /// <summary>
 /// 一个摄像头设备。

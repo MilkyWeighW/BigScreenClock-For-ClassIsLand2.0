@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-namespace LargeScreenClock.Views;
+namespace LargeScreenClockRevived.Views;
 
 /// <summary>
 /// 关于窗口：显示制作者、版本号（正式 / 测试 / 开发版）、项目仓库与演示视频链接。
@@ -13,7 +13,7 @@ namespace LargeScreenClock.Views;
 /// </summary>
 public partial class AboutPopupWindow : Window
 {
-    private const string RepoUrl = "https://github.com/MilkyWeighW/BigScreenClock-For-ClassIsLand2.0";
+    private const string RepoUrl = "https://github.com/MilkyWeighW/LargeScreenClockRevived";
 
     private const string VideoUrl =
         "https://www.bilibili.com/video/BV1b7tH6EEmj/?spm_id_from=333.1387.homepage.video_card.click&vd_source=672e65ac988bbb49080779dccc57cdb2";

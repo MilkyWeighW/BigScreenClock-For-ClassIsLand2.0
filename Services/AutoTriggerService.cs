@@ -1,11 +1,11 @@
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Shared.Enums;
-using LargeScreenClock.Models;
-using LargeScreenClock.ViewModels;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>
 /// 自动触发服务：监听课程事件，在目标课程（如晚自习）时自动显示全屏时钟窗口。

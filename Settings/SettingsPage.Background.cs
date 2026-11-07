@@ -7,9 +7,9 @@
 
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
-using LargeScreenClock.Models;
+using LargeScreenClockRevived.Models;
 
-namespace LargeScreenClock.Settings;
+namespace LargeScreenClockRevived.Settings;
 
 public partial class SettingsPage
 {

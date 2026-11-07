@@ -2,11 +2,11 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
-using LargeScreenClock.Models;
-using LargeScreenClock.NoiseDetection;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.NoiseDetection;
 using NAudio.Wave;
 
-namespace LargeScreenClock.Services;
+namespace LargeScreenClockRevived.Services;
 
 /// <summary>持续事件已触发（后台音频线程引发，调用方需自行调度到 UI 线程）。</summary>
 public sealed class NoiseEventRaisedEventArgs : EventArgs

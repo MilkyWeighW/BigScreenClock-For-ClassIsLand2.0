@@ -1,10 +1,10 @@
-namespace LargeScreenClock.Models;
+namespace LargeScreenClockRevived.Models;
 
 /// <summary>
 /// 一套主题下的 6 个可调颜色（设置页里那 6 个颜色选择器）。
 /// 明亮、黑暗各存一套：切主题时先把当前这套存回它自己的槽位、再读另一套，
 /// 所以来回切主题不会把你调过的颜色冲掉；某个主题第一次用到时，槽位里就是该主题的默认色。
-/// （存取动作在 <see cref="LargeScreenClock.Helpers.ClockThemeApplier"/> 里，
+/// （存取动作在 <see cref="LargeScreenClockRevived.Helpers.ClockThemeApplier"/> 里，
 ///   本类保持零依赖、可被单元测试直接编译。）
 /// </summary>
 public sealed class ThemeColorSet

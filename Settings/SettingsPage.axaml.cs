@@ -21,16 +21,16 @@ using Avalonia.VisualTree;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
-using LargeScreenClock.Helpers;
-using LargeScreenClock.Models;
-using LargeScreenClock.Services;
-using LargeScreenClock.ViewModels;
-using LargeScreenClock.Views;
+using LargeScreenClockRevived.Helpers;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.Services;
+using LargeScreenClockRevived.ViewModels;
+using LargeScreenClockRevived.Views;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LargeScreenClock.Settings;
+namespace LargeScreenClockRevived.Settings;
 
-[SettingsPageInfo("com.bigscreen.clock.settings", "大屏时钟", SettingsPageCategory.External)]
+[SettingsPageInfo("com.largescreenclockrevived.settings", "大屏时钟", SettingsPageCategory.External)]
 // 全宽页：不加这个，CI 会把页面标题限制在 960 宽并居中，窗口一变大标题就往中间跑，
 // 和下面铺满的设置卡片对不齐。加了这个标题固定靠左（左距与卡片一致），缩放窗口不再移动。
 [FullWidthPage]

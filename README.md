@@ -1,4 +1,4 @@
-# 大屏时钟（Large-Screen-Clock）
+# 大屏时钟（LargeScreenClockRevived）
 
 ClassIsland 2.1 插件：在教室大屏上全屏显示时间、教室分贝、课程信息与提醒，并按课程统计吵闹次数。
 
@@ -25,7 +25,7 @@ ClassIsland 2.1 插件：在教室大屏上全屏显示时间、教室分贝、�
 
 ## 依赖
 
-`Large-Screen-Clock.csproj` 直接声明的 NuGet 包：
+`LargeScreenClockRevived.csproj` 直接声明的 NuGet 包：
 
 | 包 | 版本 | 用途 |
 | --- | --- | --- |
@@ -46,11 +46,11 @@ pwsh -File ./build.ps1
 
 产物：
 
-* `bin/<Configuration>/net8.0-windows/Large-Screen-Clock.dll` —— 插件程序集
+* `bin/<Configuration>/net8.0-windows/LargeScreenClockRevived.dll` —— 插件程序集
 * `bin/<Configuration>/net8.0-windows/manifest.yml` —— 已盖号的运行时清单
-* `cipx/Large-Screen-Clock.cipx` —— 可直接安装 / 发布的插件包
+* `cipx/LargeScreenClockRevived.cipx` —— 可直接安装 / 发布的插件包
 
-`manifest.yml` 的 `version` 为对外版本（当前 `1.3.0.0`）；`apiVersion` 跟随编译所用 SDK（当前 PluginSdk 2.1.0.1 → `2.1.0.0`），升级 SDK 时同步修改。开发版五位号（`1.3.0.0.N`）宿主可加载，但更新检查不认，不会当正式更新分发。
+`manifest.yml` 的 `version` 为对外版本（当前 `1.3.1.0`）；`apiVersion` 跟随编译所用 SDK（当前 PluginSdk 2.1.0.1 → `2.1.0.0`），升级 SDK 时同步修改。开发版五位号（`1.3.1.0.N`）宿主可加载，但更新检查不认，不会当正式更新分发。
 
 ## 致所有用户的一封信
 
@@ -63,6 +63,6 @@ pwsh -File ./build.ps1
 ## 作者与许可
 
 * 作者：sokumei、MilkyWeighW
-* 项目主页：https://github.com/MilkyWeighW/BigScreenClock-For-ClassIsLand2.0
+* 项目主页：https://github.com/MilkyWeighW/LargeScreenClockRevived
 * 许可证：GNU General Public License v3.0（详见 [LICENSE](LICENSE)）
 * 免责声明：本插件为第三方 ClassIsland 插件，与 ClassIsland 官方无关；按「现状」提供，不附带任何担保。

@@ -9,11 +9,11 @@ using Avalonia.Media.Imaging;
 using Avalonia.Media.Transformation;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using LargeScreenClock.Helpers;
-using LargeScreenClock.Models;
-using LargeScreenClock.ViewModels;
+using LargeScreenClockRevived.Helpers;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.ViewModels;
 
-namespace LargeScreenClock.Views;
+namespace LargeScreenClockRevived.Views;
 
 /// <summary>
 /// 大屏时钟的全部内容。全屏窗口（<see cref="FullScreenClockWindow"/>）与设置页的预览放的都是这一份，

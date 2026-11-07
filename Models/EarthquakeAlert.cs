@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace LargeScreenClock.Models;
+namespace LargeScreenClockRevived.Models;
 
 /// <summary>
 /// 一条已经算好的地震提醒（两行文字 + 等级色所需的本地烈度）。

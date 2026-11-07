@@ -3,14 +3,14 @@ using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
 using ClassIsland.Shared.Helpers;
-using LargeScreenClock.Helpers;
-using LargeScreenClock.Models;
-using LargeScreenClock.Services;
-using LargeScreenClock.ViewModels;
+using LargeScreenClockRevived.Helpers;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.Services;
+using LargeScreenClockRevived.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace LargeScreenClock;
+namespace LargeScreenClockRevived;
 
 [PluginEntrance]
 public class Plugin : PluginBase
@@ -88,6 +88,6 @@ public class Plugin : PluginBase
         services.AddHostedService<AutoTriggerService>();
         services.AddHostedService<TrayMenuService>();
 
-        services.AddSettingsPage<LargeScreenClock.Settings.SettingsPage>();
+        services.AddSettingsPage<LargeScreenClockRevived.Settings.SettingsPage>();
     }
 }

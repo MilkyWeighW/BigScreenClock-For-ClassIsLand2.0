@@ -1,6 +1,6 @@
-using LargeScreenClock.Models;
+using LargeScreenClockRevived.Models;
 
-namespace LargeScreenClock.Helpers;
+namespace LargeScreenClockRevived.Helpers;
 
 /// <summary>
 /// 把主题配色落到设置上（需要 PluginSettings，故与纯算法的 <see cref="ClockTheme"/> 分开放）。

@@ -3,8 +3,8 @@
              xmlns:controls1="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core"
              xmlns:controls2="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
              xmlns:cp="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.ColorPicker"
-             xmlns:views="clr-namespace:LargeScreenClock.Views"
-             x:Class="LargeScreenClock.Settings.SettingsPage">
+             xmlns:views="clr-namespace:LargeScreenClockRevived.Views"
+             x:Class="LargeScreenClockRevived.Settings.SettingsPage">
 
     <!-- 页面骨架：顶部 TabControl 五页签（组件 / 显示内容 / 音量与记录 / 外观 / 运行），
          每个页签内是 ScrollViewer + settings-container 堆叠，图标标题 + SettingsExpander 设置行 + Separator 分隔；
@@ -106,12 +106,12 @@
                                 <controls2:SettingsExpanderItem Content="大小">
                                     <controls2:SettingsExpanderItem.Footer>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Slider Width="180" Minimum="0.1" Maximum="2" TickFrequency="0.05"
-                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
-                                                    Value="{Binding SelectedComponent.Layout.Scale, Mode=TwoWay}"/>
-                                            <TextBlock Text="{Binding SelectedComponent.Layout.Scale, StringFormat='{}{0:P0}'}"
-                                                       Width="60" TextAlignment="Center"
-                                                       VerticalAlignment="Center" FontSize="12"/>
+                                            <Slider Width="180" Minimum="10" Maximum="200" TickFrequency="1"
+                                                    IsSnapToTickEnabled="False" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.ScalePercent, Mode=TwoWay}"/>
+                                            <TextBox Width="72" FontSize="12" Padding="4"
+                                                     VerticalAlignment="Center"
+                                                     Text="{Binding SelectedComponent.ScalePercentText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                         </StackPanel>
                                     </controls2:SettingsExpanderItem.Footer>
                                 </controls2:SettingsExpanderItem>
@@ -119,12 +119,12 @@
                                 <controls2:SettingsExpanderItem Content="水平位置">
                                     <controls2:SettingsExpanderItem.Footer>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Slider Width="180" Minimum="-50" Maximum="50" TickFrequency="5"
-                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
-                                                    Value="{Binding SelectedComponent.Layout.OffsetX, Mode=TwoWay}"/>
-                                            <TextBlock Text="{Binding SelectedComponent.Layout.OffsetX, StringFormat='{}{0:F0}%'}"
-                                                       Width="60" TextAlignment="Center"
-                                                       VerticalAlignment="Center" FontSize="12"/>
+                                            <Slider Width="180" Minimum="-100" Maximum="100" TickFrequency="1"
+                                                    IsSnapToTickEnabled="False" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.OffsetXPercent, Mode=TwoWay}"/>
+                                            <TextBox Width="72" FontSize="12" Padding="4"
+                                                     VerticalAlignment="Center"
+                                                     Text="{Binding SelectedComponent.OffsetXPercentText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                         </StackPanel>
                                     </controls2:SettingsExpanderItem.Footer>
                                 </controls2:SettingsExpanderItem>
@@ -132,12 +132,12 @@
                                 <controls2:SettingsExpanderItem Content="垂直位置">
                                     <controls2:SettingsExpanderItem.Footer>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Slider Width="180" Minimum="-50" Maximum="50" TickFrequency="5"
-                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
-                                                    Value="{Binding SelectedComponent.Layout.OffsetY, Mode=TwoWay}"/>
-                                            <TextBlock Text="{Binding SelectedComponent.Layout.OffsetY, StringFormat='{}{0:F0}%'}"
-                                                       Width="60" TextAlignment="Center"
-                                                       VerticalAlignment="Center" FontSize="12"/>
+                                            <Slider Width="180" Minimum="-100" Maximum="100" TickFrequency="1"
+                                                    IsSnapToTickEnabled="False" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.OffsetYPercent, Mode=TwoWay}"/>
+                                            <TextBox Width="72" FontSize="12" Padding="4"
+                                                     VerticalAlignment="Center"
+                                                     Text="{Binding SelectedComponent.OffsetYPercentText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                         </StackPanel>
                                     </controls2:SettingsExpanderItem.Footer>
                                 </controls2:SettingsExpanderItem>
@@ -146,12 +146,12 @@
                                                                 Description="0% 完全透明，100% 不透明（组件仍占着原来的位置）。">
                                     <controls2:SettingsExpanderItem.Footer>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Slider Width="180" Minimum="0" Maximum="1" TickFrequency="0.01"
-                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
-                                                    Value="{Binding SelectedComponent.Layout.Opacity, Mode=TwoWay}"/>
-                                            <TextBlock Text="{Binding SelectedComponent.Layout.Opacity, StringFormat='{}{0:P0}'}"
-                                                       Width="60" TextAlignment="Center"
-                                                       VerticalAlignment="Center" FontSize="12"/>
+                                            <Slider Width="180" Minimum="0" Maximum="100" TickFrequency="1"
+                                                    IsSnapToTickEnabled="False" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.OpacityPercent, Mode=TwoWay}"/>
+                                            <TextBox Width="72" FontSize="12" Padding="4"
+                                                     VerticalAlignment="Center"
+                                                     Text="{Binding SelectedComponent.OpacityPercentText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                         </StackPanel>
                                     </controls2:SettingsExpanderItem.Footer>
                                 </controls2:SettingsExpanderItem>

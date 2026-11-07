@@ -2,7 +2,7 @@ using System.IO;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
-namespace LargeScreenClock.Models;
+namespace LargeScreenClockRevived.Models;
 
 /// <summary>
 /// 背景图片的存放：用户选的那张**复制一份**进插件配置目录，设置里只记这份副本的文件名。

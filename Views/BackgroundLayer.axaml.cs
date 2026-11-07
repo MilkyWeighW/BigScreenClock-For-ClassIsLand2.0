@@ -10,11 +10,11 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using LargeScreenClock.Helpers;
-using LargeScreenClock.Models;
-using LargeScreenClock.Services;
+using LargeScreenClockRevived.Helpers;
+using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.Services;
 
-namespace LargeScreenClock.Views;
+namespace LargeScreenClockRevived.Views;
 
 /// <summary>
 /// 大屏背景层：壁纸 / 纯色 / 自定义图片三种类型都在这一层里画。
