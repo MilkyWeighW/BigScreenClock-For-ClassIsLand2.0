@@ -93,8 +93,8 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
                 // 已最小化时再触发 Show（设置页按钮/托盘菜单）→ 先拉回全屏再刷新
                 if (_window.WindowState == WindowState.Minimized)
                 {
-                    // 先拍一张「大屏还没出现」的干净桌面，供开屏过渡垫底用
-                    var restoreShot = ScreenCaptureService.CapturePrimaryScreen(0.45);
+                    // 先拍一张「大屏还没出现」的干净桌面，供开屏过渡垫底用（不预压暗，压暗由背景层做动画）
+                    var restoreShot = ScreenCaptureService.CapturePrimaryScreen(0.0);
                     // 窗口出现前先把内容层收起来，避免第一帧把整个界面「闪」出来
                     _window.PrepareForIntro();
                     _window.WindowState = WindowState.Normal;
@@ -102,6 +102,8 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
                     _window.WindowState = WindowState.FullScreen;
                     // 从任务栏收回也算一次「开屏」：重演一遍过渡，而不是直接闪出来
                     _window.BeginBackgroundIntro(restoreShot);
+                    _window.ReassertFullScreen();
+                    DispatcherTimer.RunOnce(() => _window?.ReassertFullScreen(), TimeSpan.FromMilliseconds(60));
                 }
                 // CI 主界面（顶部课表栏）保持显示：它在 Z 序上被置顶守卫压在大屏上面，
                 // 不再像旧版那样为了「干净」把它藏掉——用户要求课表栏始终可见。
@@ -134,9 +136,10 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
             if (_settings.ShowCameraReminder) _cameraService.StartMonitoring();
             RefreshAll();
 
-            // 先拍干净桌面再显示窗口：开屏过渡的第一拍要看到「压暗掉的原来画面」，
+            // 先拍干净桌面再显示窗口：开屏过渡的第一拍要看到「原来的画面」，
             // 不能在窗口出现之后再截（那样会把大屏自己截进去）。
-            var introShot = ScreenCaptureService.CapturePrimaryScreen(0.45);
+            // 压暗不在这里乘：交给 BackgroundLayer 的 IntroVeil 淡入，压暗才有动画。
+            var introShot = ScreenCaptureService.CapturePrimaryScreen(0.0);
             // 窗口出现前先把内容层收起来：否则第一帧会把完整界面先渲染出来（用户反馈的「闪一下」）
             _window.PrepareForIntro();
             _window.WindowState = WindowState.FullScreen;
@@ -145,11 +148,10 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
             // 再排一次给平台把状态真正应用完（Windows 上偶尔会晚一拍）。
             _window.WindowState = WindowState.FullScreen;
             _window.BeginBackgroundIntro(introShot);
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (_window is { IsVisible: true } w && w.WindowState != WindowState.Minimized)
-                    w.WindowState = WindowState.FullScreen;
-            });
+            // 复用窗口 Show 之后，平台有时晚一拍才把它落回普通窗口：立刻补一次，再各补一拍。
+            _window.ReassertFullScreen();
+            DispatcherTimer.RunOnce(() => _window?.ReassertFullScreen(), TimeSpan.FromMilliseconds(60));
+            DispatcherTimer.RunOnce(() => _window?.ReassertFullScreen(), TimeSpan.FromMilliseconds(320));
             IsWindowVisible = true;
             // 课表栏不藏：置顶守卫会在窗口 Opened/Activated 与每 1.5s 把它排到大屏上面。
         });

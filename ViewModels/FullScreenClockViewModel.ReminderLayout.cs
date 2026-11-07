@@ -132,13 +132,13 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
 
         if (weather)
         {
-            var used = IconWidth(20) + 6 + TextWidth(WeatherText, 19);
+            var used = IconWidth(24) + 6 + TextWidth(WeatherText, 24);
             // 合并优先级：降雨提醒 > 倒计时 > 文本
-            TryMerge(used, rain, rain ? IconWidth(20) + 6 + TextWidth(RainReminderTitle, 19) : 0,
+            TryMerge(used, rain, rain ? IconWidth(24) + 6 + TextWidth(RainReminderTitle, 24) : 0,
                 spacing, threshold, ref used, ref rainMerged);
-            TryMerge(used, countdown, countdown ? IconWidth(20) + 6 + TextWidth(CountdownText, 19) : 0,
+            TryMerge(used, countdown, countdown ? IconWidth(24) + 6 + TextWidth(CountdownText, 24) : 0,
                 spacing, threshold, ref used, ref countdownMerged);
-            TryMerge(used, text, text ? TextWidth(ReminderText, 16) : 0,
+            TryMerge(used, text, text ? TextWidth(ReminderText, 24) : 0,
                 spacing, threshold, ref used, ref textMerged);
         }
         else if (countdown)

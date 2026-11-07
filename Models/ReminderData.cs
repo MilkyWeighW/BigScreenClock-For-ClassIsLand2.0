@@ -52,6 +52,6 @@ public class AlertInfo
     /// <see cref="PluginSettings.CameraAlertFontSize"/>）。</summary>
     public double FontSize { get; init; } = DefaultFontSize;
 
-    /// <summary>预警条目的默认字号（沿用加这个设置项之前的值）。</summary>
-    public const double DefaultFontSize = 15;
+    /// <summary>预警条目的默认字号（与 ClockSurface 的 ComponentSecondaryFontSize 一致）。</summary>
+    public const double DefaultFontSize = 16;
 }

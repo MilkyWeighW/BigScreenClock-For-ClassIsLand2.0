@@ -8,8 +8,10 @@
 
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using ClassIsland.Core.Controls;
 using EveningSelfStudyClock.Models;
 using FluentAvalonia.UI.Controls;
@@ -65,6 +67,7 @@ public partial class SettingsPage
     public bool IsCourseSelected => IsComponentSelected("course");
     public bool IsProgressSelected => IsComponentSelected("progress");
     public bool IsEarthquakeSelected => IsComponentSelected("earthquake");
+    public bool IsImageSelected => IsComponentSelected("image");
 
     private bool IsComponentSelected(string componentId) =>
         string.Equals(SelectedComponent?.Descriptor.Id, componentId, StringComparison.Ordinal);
@@ -84,6 +87,7 @@ public partial class SettingsPage
         OnPropertyChanged(nameof(IsCourseSelected));
         OnPropertyChanged(nameof(IsProgressSelected));
         OnPropertyChanged(nameof(IsEarthquakeSelected));
+        OnPropertyChanged(nameof(IsImageSelected));
     }
 
     /// <summary>有没有选中组件（没有就不显示下面那块设置）。</summary>
@@ -326,6 +330,77 @@ public partial class SettingsPage
 
         RebuildLists();
         SelectedComponent = moved;
+    }
+
+    // ===== 「自定义图片」组件的选图 =====
+
+    /// <summary>当前图片文件名；没选就是「未选择」。</summary>
+    public string CustomImageSummary
+        => ComponentImageStore.ResolvePath(_settings.CustomImageFile) is null
+            ? "未选择（组件在大屏上隐藏）"
+            : _settings.CustomImageFile;
+
+    public string CustomImageHint { get; private set; } = "选中的图片会复制一份到插件配置目录，原图之后挪走也不影响";
+
+    /// <summary>填充方式：0 完整显示 / 1 铺满裁切 / 2 拉伸。</summary>
+    public int CustomImageStretchIndex
+    {
+        get => _settings.CustomImageStretch;
+        set
+        {
+            if (_settings.CustomImageStretch == value) return;
+            _settings.CustomImageStretch = value;
+            OnPropertyChanged(nameof(CustomImageStretchIndex));
+            SchedulePreviewSync();
+        }
+    }
+
+    private async void PickCustomImage_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (TopLevel.GetTopLevel(this) is not { } top) return;
+
+            var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择要显示的图片",
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("图片")
+                    {
+                        Patterns = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp", "*.gif"],
+                    },
+                ],
+            });
+
+            if (files.Count == 0) return;
+            var source = files[0].TryGetLocalPath();
+            if (string.IsNullOrWhiteSpace(source) || !File.Exists(source)) return;
+
+            ComponentImageStore.Replace(source, _settings);
+            CustomImageHint = $"已导入：{Path.GetFileName(source)}";
+            NotifyCustomImageChanged();
+        }
+        catch (Exception ex)
+        {
+            CustomImageHint = "导入失败：" + ex.Message;
+            OnPropertyChanged(nameof(CustomImageHint));
+        }
+    }
+
+    private void ClearCustomImage_Click(object? sender, RoutedEventArgs e)
+    {
+        ComponentImageStore.Clear(_settings);
+        CustomImageHint = "已清除，组件在大屏上隐藏";
+        NotifyCustomImageChanged();
+    }
+
+    private void NotifyCustomImageChanged()
+    {
+        OnPropertyChanged(nameof(CustomImageSummary));
+        OnPropertyChanged(nameof(CustomImageHint));
+        SchedulePreviewSync();
     }
 
 }

@@ -58,6 +58,7 @@ public partial class ClockSurface : UserControl
             UpdateSizeDependentLayout();
             SetupBackdrop();
             UpdatePreviewPlaceholders();
+            ApplyCustomImage();
             ApplyComponentVisibility();
             ApplyComponentOrder();
         };
@@ -139,6 +140,15 @@ public partial class ClockSurface : UserControl
 
     private void OnPluginSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        // 自定义图片：换图/换填充方式后重新解码，并让整块的显隐跟着「有没有图」走
+        if (e.PropertyName is nameof(PluginSettings.CustomImageFile)
+            or nameof(PluginSettings.CustomImageStretch))
+        {
+            ApplyCustomImage();
+            ApplyComponentVisibility();
+            return;
+        }
+
         // 组件页（启用/排序/大小/位置）改的是 ComponentLayout 字典里的对象；
         // PluginSettings 会在任何一份布局变动时冒泡一个 ComponentLayouts 通知，这里接住：
         // 显隐与分区顺序重算，位置再排一遍（大小/位置本身由 ComponentHost 自己跟）。
@@ -315,6 +325,81 @@ public partial class ClockSurface : UserControl
         Set(CourseHost, null);
         Set(ReminderPanelHost, null);
         Set(ProgressHost, null);
+
+        // 自定义图片：没有图（或图读不出来）时整块隐藏，别留一块空壳占着布局
+        Set(ImageHost, null);
+        ImageHost.IsVisible = ImageHost.IsVisible && _customImageAvailable;
+    }
+
+    // ===== 自定义图片组件 =====
+
+    /// <summary>当前已解码的图片路径 / 位图，用来避免拖滑块时反复解码同一张图。</summary>
+    private string? _customImagePath;
+    private Bitmap? _customImageBitmap;
+
+    /// <summary>设置里有图且读得出来 → true；没有/坏图 → false（组件随之隐藏）。</summary>
+    private bool _customImageAvailable;
+
+    /// <summary>
+    /// 把设置里指定的自定义图片读到 <see cref="CustomImage"/>。
+    /// 同一张图不重复解码（改大小/不透明度/位置都会触发设置通知），换图时旧位图延后一帧再释放。
+    /// </summary>
+    private void ApplyCustomImage()
+    {
+        var settings = Plugin.Settings;
+        var path = settings is null ? null : ComponentImageStore.ResolvePath(settings.CustomImageFile);
+
+        if (settings is not null)
+        {
+            CustomImage.Stretch = settings.CustomImageStretch switch
+            {
+                1 => Stretch.UniformToFill,   // 铺满裁切
+                2 => Stretch.Fill,            // 拉伸（可能变形）
+                _ => Stretch.Uniform,         // 完整显示
+            };
+        }
+
+        if (path is null)
+        {
+            _customImagePath = null;
+            _customImageAvailable = false;
+            CustomImage.Source = null;
+            ReplaceCustomImageBitmap(null);
+            return;
+        }
+
+        _customImageAvailable = true;
+        if (string.Equals(_customImagePath, path, StringComparison.OrdinalIgnoreCase) && _customImageBitmap is not null)
+            return;
+
+        try
+        {
+            var bitmap = new Bitmap(path);
+            _customImagePath = path;
+            CustomImage.Source = bitmap;
+            ReplaceCustomImageBitmap(bitmap);
+
+            // 图片刚换上时也按屏幕算一次尺寸（DataContextChanged 时面可能还没量过宽度）
+            if (Bounds.Width > 0) UpdateSizeDependentLayout();
+        }
+        catch
+        {
+            // 文件坏了就当没选图，别让整面墙跟着崩
+            _customImagePath = null;
+            _customImageAvailable = false;
+            CustomImage.Source = null;
+            ReplaceCustomImageBitmap(null);
+        }
+    }
+
+    private void ReplaceCustomImageBitmap(Bitmap? bitmap)
+    {
+        var previous = _customImageBitmap;
+        _customImageBitmap = bitmap;
+        if (previous is null || ReferenceEquals(previous, bitmap)) return;
+
+        // 等这一帧画完再释放，避免渲染线程还在读旧位图
+        Dispatcher.UIThread.Post(previous.Dispose, DispatcherPriority.Background);
     }
 
     /// <summary>
@@ -500,6 +585,25 @@ public partial class ClockSurface : UserControl
         vm.CourseInfoMaxWidth = Math.Max(160, (Bounds.Width - 80) / 2.0);
         // 地震提醒块：整窗宽去掉页面左右各 40 的边距，再留出内边距与描边
         vm.EarthquakeAlertMaxWidth = Math.Max(240, Bounds.Width - 80 - 72);
+
+        // 自定义图片：按屏幕宽度的 30% 作基准边长、保持原图长宽比（再大就靠组件的「大小倍率」放大），
+        // 高度别超过屏幕的六成，免得一张竖图顶到顶栏。
+        if (CustomImage.Source is Bitmap customBitmap && customBitmap.PixelSize is { Width: > 0, Height: > 0 } pixel)
+        {
+            var baseWidth = Math.Max(80, Bounds.Width * 0.30);
+            var width = baseWidth;
+            var height = baseWidth * pixel.Height / pixel.Width;
+            var maxHeight = Bounds.Height * 0.60;
+            if (height > maxHeight)
+            {
+                height = maxHeight;
+                width = height * pixel.Width / pixel.Height;
+            }
+
+            if (Math.Abs(CustomImage.Width - width) > 0.5) CustomImage.Width = width;
+            if (Math.Abs(CustomImage.Height - height) > 0.5) CustomImage.Height = height;
+        }
+
         ApplyBodyPositions();
     }
 
@@ -548,6 +652,9 @@ public partial class ClockSurface : UserControl
     /// <summary>时钟与音量条之间至少留出的距离（音量条顶上来时的联动依据）。</summary>
     private const double ClockVolumeGap = 24;
 
+    /// <summary>音量条宽度 / 时钟文字宽度。比时钟短一截，读起来像一条仪表而不是和时钟同宽的横幅。</summary>
+    private const double VolumeBarWidthRatio = 0.72;
+
     /// <summary>正在套用布局（也是往设置里写回实际位置的时候），用来挡住写回引发的重入。</summary>
     private bool _applyingLayout;
 
@@ -579,6 +686,17 @@ public partial class ClockSurface : UserControl
         {
             // 地震提醒是整屏正中的浮层，不参与这里的限位：它来去都不该把时钟顶走
             const double topLimit = 0.0;
+
+            // 音量条宽度按时钟文字的实测宽度收一截（时钟字号一变它就跟着变）。
+            // 以前与时钟等宽，看着像一条和时钟一样长的横幅；收窄后更像仪表。
+            // 值没变就不赋值，免得 SizeChanged 再进来一轮。
+            var clockWidth = ClockText.Bounds.Width;
+            if (clockWidth > 0)
+            {
+                var barWidth = Math.Round(clockWidth * VolumeBarWidthRatio);
+                if (Math.Abs(VolumePanel.Width - barWidth) > 0.5)
+                    VolumePanel.Width = barWidth;
+            }
 
             // 组件化以后 Margins 落在 ComponentHost 上（内层控件不再有自己的偏移），
             // 所以量高度、摆位置都对着外壳做；内层的高度（字号决定）仍从时钟/音量条取。

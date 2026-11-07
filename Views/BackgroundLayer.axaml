@@ -11,8 +11,12 @@
             <!-- 纯色背景类型用（其它类型时透明、不显示） -->
             <Border x:Name="SolidFill" Opacity="0"/>
 
-            <!-- 旧画面：开屏时是「当前屏幕截图压暗」，运行中换背景时是上一张背景 -->
+            <!-- 旧画面：开屏时是「当前屏幕截图」，运行中换背景时是上一张背景 -->
             <Image x:Name="PriorImage" Stretch="UniformToFill" Opacity="0"/>
+
+            <!-- 开屏压暗：只盖在旧画面（截图）上，先透明再淡入到压暗值，
+                 让「压暗」本身也有过渡，而不是第一帧直接黑一下。目标画面淡入时不参与。 -->
+            <Border x:Name="IntroVeil" Background="#000000" Opacity="0"/>
 
             <!-- 目标画面：壁纸 / 自定义图片。壁纸的景深放大用代码里创建的 ScaleTransform 做
                  （XAML 里 RenderTransform 内的命名元素不生成字段，故不在 XAML 里挂）。 -->

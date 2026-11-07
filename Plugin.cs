@@ -55,6 +55,9 @@ public class Plugin : PluginBase
         if (File.Exists(settingsPath) && !string.IsNullOrWhiteSpace(Settings.BackgroundImageFile))
             Settings.BackgroundKind = (int)BackgroundKind.CustomImage;
 
+        // 从来没调过背景明暗的老配置：补一次「默认压暗 30%」（调过的值不动，迁移只跑一次）
+        Settings.MigrateBackgroundDimDefault();
+
         // 模糊壁纸磁盘缓存：每次启动顺手清一次，只留最近几张（换壁纸后旧缓存没人再引用）
         WallpaperCacheService.CleanupCache();
 

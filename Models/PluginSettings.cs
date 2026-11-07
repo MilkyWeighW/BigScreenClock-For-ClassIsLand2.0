@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
@@ -36,7 +36,9 @@ public class PluginSettings : INotifyPropertyChanged
     private int _clockFontSize = 180;
     private double _clockPositionPercent = 30;      // 时钟中心在主体区高度的 30% 处
     private double _volumePositionPercent = 80;     // 音量条中心在主体区高度的 80% 处
-    private int _courseInfoFontSize = 30;
+    // 非时钟/音量组件的默认字号统一到同一档：课程信息与吵闹计数都是 24，
+    // 与 ClockSurface 里 ComponentFontSize 资源保持一致（日期/天气/提醒也用它）。
+    private int _courseInfoFontSize = 24;
     private int _countFontSize = 24;
     private int _themeMode;
     private int _appliedPaletteVariant = ClockTheme.VariantUnknown;
@@ -46,7 +48,8 @@ public class PluginSettings : INotifyPropertyChanged
     private int _backgroundThemeMode;
     private string _backgroundImageFile = "";
     private int _backgroundImageStretch;
-    private double _backgroundDim;
+    // 默认就把背景压暗 30%：花壁纸上白字才读得清（负值=压暗，见 BackgroundDim）
+    private double _backgroundDim = -30;
     private double _wallpaperZoom = 1.15;
     private double _wallpaperBlurRadius = 24;
     private double _animationSpeed = 1.0;
@@ -252,6 +255,30 @@ public class PluginSettings : INotifyPropertyChanged
         get => _backgroundImageStretch;
         set { _backgroundImageStretch = Math.Clamp(value, 0, 2); OnPropertyChanged(); }
     }
+
+    // ===== 「自定义图片」组件 =====
+
+    /// <summary>
+    /// 自定义图片组件要显示的图片文件名（相对插件配置目录，由 <see cref="ComponentImageStore"/> 存放）。
+    /// 空 = 还没选图，这个组件在大屏上不显示。
+    /// </summary>
+    public string CustomImageFile
+    {
+        get => _customImageFile;
+        set { _customImageFile = value ?? ""; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// 自定义图片的填充方式：0 = 完整显示（等比，默认），1 = 铺满裁切（等比填满），2 = 拉伸（填满且可能变形）。
+    /// </summary>
+    public int CustomImageStretch
+    {
+        get => _customImageStretch;
+        set { _customImageStretch = Math.Clamp(value, 0, 2); OnPropertyChanged(); }
+    }
+
+    private string _customImageFile = "";
+    private int _customImageStretch;
 
     /// <summary>
     /// 背景明暗遮罩：负值压暗、正值提亮（-100 ~ 100），0 = 不改。
@@ -718,7 +745,8 @@ public class PluginSettings : INotifyPropertyChanged
     ///
     /// 不重置的三项：<see cref="AdjustingLayout"/>（拖动中的运行时状态）、
     /// <see cref="AppliedPaletteVariant"/>（主题跟随状态，不是用户设置）、
-    /// <see cref="ComponentLayouts"/>（字典要整体换成默认实例，单独处理）。
+    /// <see cref="ComponentLayouts"/>（字典要整体换成默认实例，单独处理）；
+    /// 两个迁移版本号也不重置，否则下一次启动会把已经套过的迁移再跑一遍。
     /// </summary>
     public void ResetAllToDefaults()
     {
@@ -737,6 +765,8 @@ public class PluginSettings : INotifyPropertyChanged
                 // 迁移版本不能回 0：否则下次启动会再跑一遍「旧显示开关 → 组件启用」的迁移，
                 // 把用户重置后手动关掉的组件又全部打开。
                 case nameof(ComponentVisibilityMigrationVersion):
+                // 「默认压暗 30%」迁移同理：已经套过一次就不要再动用户重置后的明暗值。
+                case nameof(BackgroundDimMigrationVersion):
                     continue;
             }
 
@@ -768,7 +798,27 @@ public class PluginSettings : INotifyPropertyChanged
     private int _componentVisibilityMigrationVersion;
 
     /// <summary>
-    /// 一次性把旧的显示开关搬进组件的启用开关：原本关掉某个组件的用户，迁移后还是关掉的，
+    /// 「默认压暗 30%」迁移版本：0 = 还没套过。老配置里 <see cref="BackgroundDim"/> 一直是 0
+    /// （用户从没碰过明暗滑条），升级上来后自动补成 -30；用户自己调过的非零值一律不动。
+    /// 迁移完置 1，之后以用户设置为准。
+    /// </summary>
+    public int BackgroundDimMigrationVersion
+    {
+        get => _backgroundDimMigrationVersion;
+        set { _backgroundDimMigrationVersion = value; OnPropertyChanged(); }
+    }
+
+    private int _backgroundDimMigrationVersion;
+
+    /// <summary>一次性把「从没调过明暗」的老配置补成默认压暗 30%（只补一次，见版本号）。</summary>
+    public void MigrateBackgroundDimDefault()
+    {
+        if (BackgroundDimMigrationVersion >= 1) return;
+        if (Math.Abs(BackgroundDim) < 0.01) BackgroundDim = -30;
+        BackgroundDimMigrationVersion = 1;
+    }
+
+    /// <summary>一次性把旧的显示开关搬进组件的启用开关：原本关掉某个组件的用户，迁移后还是关掉的，
     /// 不会因为「组件默认全开」突然多出一堆东西。搬完把旧开关置真（大屏侧已经不再看它们，
     /// 留着真值只是免得老配置里残留的 false 在别处又冒出来）。
     /// </summary>

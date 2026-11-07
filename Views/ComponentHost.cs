@@ -117,6 +117,9 @@ public class ComponentHost : ContentControl
     {
         if (_layout is not { } layout) return;
 
+        // 不透明度不是变换，单独作用在整块壳上；默认 1 = 等于没有这一层。
+        Opacity = layout.Opacity;
+
         var surfaceWidth = _surface?.Bounds.Width ?? 0;
         var surfaceHeight = _surface?.Bounds.Height ?? 0;
         var scale = layout.Scale;

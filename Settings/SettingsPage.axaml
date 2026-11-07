@@ -106,7 +106,7 @@
                                 <controls2:SettingsExpanderItem Content="大小">
                                     <controls2:SettingsExpanderItem.Footer>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Slider Width="180" Minimum="0.5" Maximum="2" TickFrequency="0.05"
+                                            <Slider Width="180" Minimum="0.1" Maximum="2" TickFrequency="0.05"
                                                     IsSnapToTickEnabled="True" VerticalAlignment="Center"
                                                     Value="{Binding SelectedComponent.Layout.Scale, Mode=TwoWay}"/>
                                             <TextBlock Text="{Binding SelectedComponent.Layout.Scale, StringFormat='{}{0:P0}'}"
@@ -142,6 +142,20 @@
                                     </controls2:SettingsExpanderItem.Footer>
                                 </controls2:SettingsExpanderItem>
 
+                                <controls2:SettingsExpanderItem Content="不透明度"
+                                                                Description="0% 完全透明，100% 不透明（组件仍占着原来的位置）。">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider Width="180" Minimum="0" Maximum="1" TickFrequency="0.01"
+                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.Layout.Opacity, Mode=TwoWay}"/>
+                                            <TextBlock Text="{Binding SelectedComponent.Layout.Opacity, StringFormat='{}{0:P0}'}"
+                                                       Width="60" TextAlignment="Center"
+                                                       VerticalAlignment="Center" FontSize="12"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+
                                 <controls2:SettingsExpanderItem Content="顺序" Description="同区先后">
                                     <controls2:SettingsExpanderItem.Footer>
                                         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -153,6 +167,35 @@
                                                        VerticalAlignment="Center"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                         </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="图片"
+                                                                Description="{Binding CustomImageHint}"
+                                                                IconSource="{controls1:FluentIconSource &#xE9B2;}"
+                                    IsVisible="{Binding IsImageSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding CustomImageSummary}" FontSize="12"
+                                                       MaxWidth="240" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                            <Button Content="选择图片" FontSize="13" Padding="12,5" CornerRadius="6"
+                                                    Cursor="Hand" Click="PickCustomImage_Click"/>
+                                            <Button Content="清除" FontSize="13" Padding="12,5" CornerRadius="6"
+                                                    Cursor="Hand" Click="ClearCustomImage_Click"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+
+                                <controls2:SettingsExpanderItem Content="图片填充方式"
+                                    IsVisible="{Binding IsImageSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <ComboBox SelectedIndex="{Binding CustomImageStretchIndex, Mode=TwoWay}"
+                                                  Width="140" VerticalAlignment="Center">
+                                            <ComboBoxItem Content="完整显示"/>
+                                            <ComboBoxItem Content="铺满裁切"/>
+                                            <ComboBoxItem Content="拉伸"/>
+                                        </ComboBox>
                                     </controls2:SettingsExpanderItem.Footer>
                                 </controls2:SettingsExpanderItem>
                                 <controls2:SettingsExpanderItem Content="时钟字号"

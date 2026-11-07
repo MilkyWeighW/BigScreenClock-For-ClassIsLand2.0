@@ -20,8 +20,8 @@ namespace EveningSelfStudyClock.Models;
 /// </summary>
 public sealed class ComponentLayout : INotifyPropertyChanged
 {
-    /// <summary>缩放倍率下限。</summary>
-    public const double MinScale = 0.5;
+    /// <summary>缩放倍率下限（10%：留出「几乎看不见但还占着位置」的极端档）。</summary>
+    public const double MinScale = 0.1;
 
     /// <summary>缩放倍率上限。</summary>
     public const double MaxScale = 2.0;
@@ -32,14 +32,21 @@ public sealed class ComponentLayout : INotifyPropertyChanged
     /// <summary>水平/垂直偏移百分比上限。</summary>
     public const double MaxOffsetPercent = 50;
 
+    /// <summary>不透明度下限（0 = 完全透明，看不见但还占着布局）。</summary>
+    public const double MinOpacity = 0.0;
+
+    /// <summary>不透明度上限（1 = 完全不透明）。</summary>
+    public const double MaxOpacity = 1.0;
+
     private double _scale = 1.0;
     private double _offsetX;
     private double _offsetY;
     private bool _enabled = true;
     private int? _order;
+    private double _opacity = 1.0;
 
     /// <summary>
-    /// 整体缩放倍率：1 = 原始大小，0.5 = 缩到一半，2 = 放大一倍。
+    /// 整体缩放倍率：1 = 原始大小，0.1 = 缩到一成，2 = 放大一倍。
     /// 通过 RenderTransform 缩放，不参与布局，所以拉大拉小不会把别的组件挤走。
     /// </summary>
     public double Scale
@@ -86,19 +93,31 @@ public sealed class ComponentLayout : INotifyPropertyChanged
         set => Set(ref _order, value);
     }
 
+    /// <summary>
+    /// 整体不透明度：1 = 完全不透明（默认），0 = 完全透明（看不见，但仍占着布局位置）。
+    /// 作用在整块组件的外壳上，文字、图标、进度条会一起变淡。
+    /// </summary>
+    public double Opacity
+    {
+        get => _opacity;
+        set => Set(ref _opacity, Math.Clamp(value, MinOpacity, MaxOpacity));
+    }
+
     /// <summary>这一份是不是全默认值（设置页拿它决定「恢复默认」按钮灰不灰）。不存盘，是算出来的。</summary>
     [JsonIgnore]
     public bool IsDefault =>
         Math.Abs(Scale - 1) < 0.0001 &&
         Math.Abs(OffsetX) < 0.0001 &&
-        Math.Abs(OffsetY) < 0.0001;
+        Math.Abs(OffsetY) < 0.0001 &&
+        Math.Abs(Opacity - 1) < 0.0001;
 
-    /// <summary>恢复默认外观（大小 1、位置不动）。不动启用状态与顺序——那是「显不显示/排第几」，不是外观。</summary>
+    /// <summary>恢复默认外观（大小 1、位置不动、不透明度 1）。不动启用状态与顺序——那是「显不显示/排第几」，不是外观。</summary>
     public void Reset()
     {
         Scale = 1.0;
         OffsetX = 0;
         OffsetY = 0;
+        Opacity = 1.0;
     }
 
     private void Set<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
@@ -144,6 +163,7 @@ public static class ComponentCatalog
         new("counter", "吵闹计数", "左下角的吵闹次数与「正在记录」提示。", "\uE3E0"),
         new("course", "课程信息", "底部居中的当前课程与打铃时间。", "\uE215"),
         new("progress", "课程进度条", "屏幕最底部的整宽进度带。", "\uE5DF"),
+        new("image", "自定义图片", "自选的图片（班徽、logo 等），大小、位置、不透明度与其它组件一样调。", "\uE9B2"),
         new("earthquake", "地震警报", "地震预警插件报警时整屏正中的提示块。", "\uE7C5"),
     };
 

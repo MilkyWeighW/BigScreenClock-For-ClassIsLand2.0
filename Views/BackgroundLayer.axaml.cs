@@ -33,9 +33,11 @@ namespace EveningSelfStudyClock.Views;
 public partial class BackgroundLayer : UserControl
 {
     // 过渡时长（毫秒）
-    private const int ScreenshotHoldMs = 420;   // 壁纸类型：压暗截图先停一会儿
     private const int FadeMs = 520;             // 旧画面 → 新画面
-    private const int VeilFadeMs = 360;
+    private const int VeilFadeMs = 360;         // 明暗遮罩变化
+    private const int IntroDimFadeMs = 280;     // 开屏：「压暗」淡入的时长
+    private const double IntroDimOpacity = 0.45; // 开屏时压暗截图的程度（与原截图压暗系数一致）
+    private const double IntroOverlapRatio = 0.75; // 压暗演到 75% 就开始换背景，两段动画重叠
 
     /// <summary>背景层圆角：全屏时 0，设置页预览时是预览卡片的圆角。</summary>
     public new CornerRadius CornerRadius
@@ -53,6 +55,9 @@ public partial class BackgroundLayer : UserControl
 
     /// <summary>景深推近动画的取消令牌：换背景/换设置/离开视觉树时立刻停手。</summary>
     private CancellationTokenSource? _zoomCts;
+
+    /// <summary>开屏时间线的取消令牌：中途换设置/离开视觉树时停掉旧的那一轮。</summary>
+    private CancellationTokenSource? _introCts;
 
     private Bitmap? _targetBitmap;
     private Bitmap? _priorBitmap;
@@ -83,8 +88,9 @@ public partial class BackgroundLayer : UserControl
     {
         if (_disposed) return;
 
-        // 设置一变就停掉正在进行的推近动画，静态值以这次 Apply 为准
+        // 设置一变就停掉正在进行的推近动画与开屏时间线，静态值以这次 Apply 为准
         StopZoomAnimation();
+        StopIntroTimeline();
 
         var kind = (BackgroundKind)settings.BackgroundKind;
         var animate = _appliedOnce && !isPreview && _attached;
@@ -123,12 +129,15 @@ public partial class BackgroundLayer : UserControl
     /// </summary>
     public void PrepareForIntro()
     {
+        StopIntroTimeline();
         TargetImage.Transitions = null;
         SolidFill.Transitions = null;
         PriorImage.Transitions = null;
+        IntroVeil.Transitions = null;
         TargetImage.Opacity = 0;
         SolidFill.Opacity = 0;
         PriorImage.Opacity = 0;
+        IntroVeil.Opacity = 0;
     }
 
     /// <summary>
@@ -154,24 +163,29 @@ public partial class BackgroundLayer : UserControl
 
         var kind = (BackgroundKind)settings.BackgroundKind;
         var speed = Math.Clamp(settings.AnimationSpeed, 0.5, 2.0);
-        var holdMs = Scaled(ScreenshotHoldMs, speed);
+        var dimMs = Scaled(IntroDimFadeMs, speed);
         var fadeMs = Scaled(FadeMs, speed);
+        var zoom = Math.Clamp(settings.WallpaperZoom, 1.0, 1.6);
 
         // 先套静态值（保证目标图已经烘好），但暂时不显示。
         // 和内容层同理：上一轮留下的淡入过渡会让「设为 0」变成慢慢淡出，所以先摘掉过渡再置 0。
         Apply(settings, isPreview: false);
+        StopIntroTimeline();
         TargetImage.Transitions = null;
         SolidFill.Transitions = null;
         TargetImage.Opacity = 0;
         SolidFill.Opacity = 0;
         PriorImage.Opacity = 0;
         PriorImage.Transitions = null;
+        IntroVeil.Transitions = null;
+        IntroVeil.Opacity = 0;
 
         // 开屏遮罩之前若还有正在淡出的旧图，先收掉
         DisposeFadingFrame();
 
-        // ① 当前屏幕截图压暗，先垫在最底下（优先用调用方在 Show 之前拍的干净截图）
-        var shot = priorScreenshot ?? ScreenCaptureService.CapturePrimaryScreen(0.45);
+        // ① 当前屏幕截图原样垫在最底下（优先用调用方在 Show 之前拍的干净截图）。
+        //    这里不再预先乘压暗系数：压暗交给 IntroVeil 做动画，第一帧才不会直接黑一下。
+        var shot = priorScreenshot ?? ScreenCaptureService.CapturePrimaryScreen(0.0);
         if (shot is null)
         {
             // 截屏失败（远程桌面/受保护内容）：退化成直接显示背景 + 组件淡入
@@ -184,42 +198,127 @@ public partial class BackgroundLayer : UserControl
         PriorImage.Source = shot;
         PriorImage.Opacity = 1;
 
-        // ② 壁纸类型：在截图上多停一会儿，让「先压暗、再推近」这两拍能被看见
-        if (kind == BackgroundKind.Wallpaper)
-            await Task.Delay(holdMs);
+        // ② 压暗与后续渲染重叠执行：压暗演到 75% 就开始换背景 / 淡入组件，
+        //    两段动画叠在一起跑，总时长更短，也不会出现「压暗演完才动」的卡顿感。
+        var revealAt = Math.Max(1, (int)Math.Round(dimMs * IntroOverlapRatio));
+        var total = revealAt + fadeMs;
 
-        if (_disposed) return;
+        RunIntroTimeline(kind, dimMs, revealAt, fadeMs, zoom, onTargetReveal);
 
-        // ③ 交叉淡入新背景，并通知调用方淡入组件
-        onTargetReveal?.Invoke();
-        if (kind == BackgroundKind.Wallpaper)
+        await Task.Delay(total);
+    }
+
+    /// <summary>
+    /// 开屏动画时间线：手写 16ms 定时器插值，不用 Transitions——
+    /// 之前用 Transitions 时「压暗」在部分环境下根本不演（只看得到硬切），
+    /// 改成手写后节奏完全可控，而且能把「压暗 → 换背景」这两段重叠起来。
+    /// </summary>
+    private void RunIntroTimeline(BackgroundKind kind, int dimMs, int revealAt, int fadeMs, double zoom,
+        Action? onTargetReveal)
+    {
+        StopIntroTimeline();
+
+        var cts = new CancellationTokenSource();
+        _introCts = cts;
+
+        var wallpaper = kind == BackgroundKind.Wallpaper;
+        var fromZoom = wallpaper ? Math.Max(1.0, zoom - 0.15) : 1.0;
+        _targetScale.ScaleX = fromZoom;
+        _targetScale.ScaleY = fromZoom;
+
+        var revealed = false;
+        var total = revealAt + fadeMs;
+        var sw = Stopwatch.StartNew();
+
+        DispatcherTimer? timer = null;
+        timer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) =>
         {
-            // 壁纸顺带从略小一点的倍率缓推到用户设定的放大倍率，就是「景深推近」那一拍
-            var zoom = settings.WallpaperZoom;
-            var from = Math.Max(1.0, zoom - 0.15);
-            _targetScale.ScaleX = from;
-            _targetScale.ScaleY = from;
-            SetFade(TargetImage, fadeMs);
-            TargetImage.Opacity = 1;
-            AnimateZoomTo(zoom, fadeMs);
-        }
-        else
-        {
-            SetFade(TargetImage, fadeMs);
-            SetFade(SolidFill, fadeMs);
-            TargetImage.Opacity = kind == BackgroundKind.CustomImage ? 1 : 0;
-            SolidFill.Opacity = kind == BackgroundKind.SolidColor ? 1 : 0;
-        }
+            if (cts.IsCancellationRequested)
+            {
+                timer?.Stop();
+                return;
+            }
 
-        SetFade(PriorImage, fadeMs);
+            var elapsed = sw.Elapsed.TotalMilliseconds;
+
+            // 压暗淡入（CubicEaseOut）：0 → IntroDimOpacity
+            var dimProgress = Math.Clamp(elapsed / Math.Max(1.0, dimMs), 0, 1);
+            var dimOpacity = IntroDimOpacity * (1 - Math.Pow(1 - dimProgress, 3));
+
+            if (elapsed < revealAt)
+            {
+                IntroVeil.Opacity = dimOpacity;
+                return;
+            }
+
+            // 压暗走到 75%：不再等它演完，立刻开始换背景 + 淡入组件（两段动画重叠）
+            if (!revealed)
+            {
+                revealed = true;
+                onTargetReveal?.Invoke();
+            }
+
+            var fadeProgress = Math.Clamp((elapsed - revealAt) / Math.Max(1.0, fadeMs), 0, 1);
+            var eased = 1 - Math.Pow(1 - fadeProgress, 3);
+
+            IntroVeil.Opacity = dimOpacity * (1 - eased);
+            PriorImage.Opacity = 1 - eased;
+
+            if (wallpaper)
+            {
+                var currentZoom = fromZoom + (zoom - fromZoom) * eased;
+                _targetScale.ScaleX = currentZoom;
+                _targetScale.ScaleY = currentZoom;
+                TargetImage.Opacity = eased;
+            }
+            else if (kind == BackgroundKind.CustomImage)
+            {
+                TargetImage.Opacity = eased;
+            }
+            else
+            {
+                SolidFill.Opacity = eased;
+            }
+
+            if (elapsed < total) return;
+
+            timer?.Stop();
+            if (ReferenceEquals(_introCts, cts)) _introCts = null;
+            cts.Dispose();
+            CompleteIntro(kind, zoom);
+        });
+
+        timer.Start();
+    }
+
+    /// <summary>开屏时间线落到最终状态，并释放垫底的截图。</summary>
+    private void CompleteIntro(BackgroundKind kind, double zoom)
+    {
+        PriorImage.Transitions = null;
+        TargetImage.Transitions = null;
+        SolidFill.Transitions = null;
+        IntroVeil.Transitions = null;
+
         PriorImage.Opacity = 0;
-        await Task.Delay(fadeMs);
+        IntroVeil.Opacity = 0;
+        TargetImage.Opacity = kind == BackgroundKind.SolidColor ? 0 : 1;
+        SolidFill.Opacity = kind == BackgroundKind.SolidColor ? 1 : 0;
+        var finalZoom = kind == BackgroundKind.Wallpaper ? zoom : 1;
+        _targetScale.ScaleX = finalZoom;
+        _targetScale.ScaleY = finalZoom;
 
-        if (_disposed) return;
         PriorImage.Source = null;
         _priorBitmap?.Dispose();
         _priorBitmap = null;
-        FinishImmediately();
+    }
+
+    private void StopIntroTimeline()
+    {
+        var cts = _introCts;
+        _introCts = null;
+        if (cts is null) return;
+        cts.Cancel();
+        cts.Dispose();
     }
 
     /// <summary>把基准时长按用户设定的动画速率换算成实际毫秒（速率越大越快）。</summary>
@@ -447,7 +546,9 @@ public partial class BackgroundLayer : UserControl
         TargetImage.Transitions = null;
         SolidFill.Transitions = null;
         Veil.Transitions = null;
+        IntroVeil.Transitions = null;
         PriorImage.Opacity = 0;
+        IntroVeil.Opacity = 0;
         DisposeFadingFrame();
     }
 

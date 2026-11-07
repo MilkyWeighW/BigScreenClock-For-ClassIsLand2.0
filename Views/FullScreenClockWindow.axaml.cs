@@ -24,8 +24,16 @@ public partial class FullScreenClockWindow : Window
 
     private CancellationTokenSource? _hideCursorCts;
     private DispatcherTimer? _fadeOutTimer;
+    private bool _reassertPosted;
     private readonly DispatcherTimer _topmostGuardTimer =
         new() { Interval = TimeSpan.FromMilliseconds(TopmostGuardIntervalMs) };
+
+    /// <summary>
+    /// 全屏看门狗：设置窗口交互 / 系统切前台后，全屏窗口偶尔会被落回 Normal（表现为「窗口化」）。
+    /// 光靠 Opened/Activated 兜不住，这里在可见期间低频检查并把状态拉回 FullScreen。
+    /// </summary>
+    private readonly DispatcherTimer _fullScreenGuardTimer =
+        new() { Interval = TimeSpan.FromMilliseconds(700) };
 
     public FullScreenClockWindow()
     {
@@ -41,6 +49,11 @@ public partial class FullScreenClockWindow : Window
                 if (!IsVisible) (DataContext as FullScreenClockViewModel)?.ResetPositionLimits();
                 UpdateTopmostGuardTimer();
             }
+            else if (e.Property == WindowStateProperty && IsVisible && WindowState == WindowState.Normal)
+            {
+                // 从全屏被落回 Normal（点设置页、系统切前台等）：下一拍立刻拉回全屏
+                ReassertFullScreenSoon();
+            }
         };
         Closed += (_, _) =>
         {
@@ -49,6 +62,7 @@ public partial class FullScreenClockWindow : Window
         };
 
         _topmostGuardTimer.Tick += (_, _) => ArrangeClassIslandTopmost();
+        _fullScreenGuardTimer.Tick += (_, _) => EnsureFullScreenState();
 
         // 显示后、每次被激活时都重排一次 Z 序：CI 课表栏始终压在大屏上面
         Opened += (_, _) =>
@@ -63,20 +77,70 @@ public partial class FullScreenClockWindow : Window
             ArrangeClassIslandTopmost();
             UpdateTopmostGuardTimer();
         };
-        Activated += (_, _) => ArrangeClassIslandTopmost();
+        Activated += (_, _) =>
+        {
+            EnsureFullScreenState();
+            ArrangeClassIslandTopmost();
+        };
     }
 
-    /// <summary>可见期间周期性重排：用户点回大屏/切换窗口后，课表栏仍会被重新抬回上面。</summary>
+    /// <summary>可见期间周期性重排 Z 序，并兜底全屏状态；不可见时两支定时器都停掉。</summary>
     private void UpdateTopmostGuardTimer()
     {
         if (IsVisible)
         {
             if (!_topmostGuardTimer.IsEnabled) _topmostGuardTimer.Start();
+            if (!_fullScreenGuardTimer.IsEnabled) _fullScreenGuardTimer.Start();
         }
         else
         {
             _topmostGuardTimer.Stop();
+            _fullScreenGuardTimer.Stop();
         }
+    }
+
+    /// <summary>
+    /// 把窗口拉回全屏：先纠 Avalonia 的状态，再按 Win32 的窗口矩形兜一次底。
+    /// 「窗口化」有两种成因——状态属性真的变回 Normal，或属性还报 FullScreen 但原生窗口已被平台缩小，
+    /// 所以两步都要做；最小化状态不去打扰。
+    /// </summary>
+    private void EnsureFullScreenState()
+    {
+        if (!IsVisible || WindowState == WindowState.Minimized) return;
+
+        if (WindowState != WindowState.FullScreen)
+            WindowState = WindowState.FullScreen;
+
+        var handle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        if (handle == IntPtr.Zero || NativeFullScreen.CoversMonitor(handle)) return;
+
+        // SetWindowPos 会把自己顶到最上面，摆回去之后再把课表栏抬回来
+        if (NativeFullScreen.ForceCoverMonitor(handle)) ArrangeClassIslandTopmost();
+    }
+
+    /// <summary>供 ViewModel 在 Show 之后补几拍用：不依赖定时器，立刻做一次全屏兜底。</summary>
+    public void ReassertFullScreen()
+    {
+        try
+        {
+            EnsureFullScreenState();
+        }
+        catch
+        {
+            // 兜底失败不影响大屏本身
+        }
+    }
+
+    /// <summary>下一拍（等平台把 Normal 应用完）再拉一次全屏，避免和平台状态互相打架。</summary>
+    private void ReassertFullScreenSoon()
+    {
+        if (_reassertPosted) return;
+        _reassertPosted = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _reassertPosted = false;
+            EnsureFullScreenState();
+        }, DispatcherPriority.Background);
     }
 
     /// <summary>把大屏与 CI 课表栏的 Z 序重排一遍（课表栏在上）；拿不到窗口句柄时静默跳过。</summary>
@@ -110,6 +174,7 @@ public partial class FullScreenClockWindow : Window
     public void PrepareForExit()
     {
         _topmostGuardTimer.Stop();
+        _fullScreenGuardTimer.Stop();
     }
 
     /// <summary>
