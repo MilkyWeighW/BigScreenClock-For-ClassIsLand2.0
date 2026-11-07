@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
@@ -23,7 +23,6 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _showCourseInfo = true;
     private bool _showBellTime = true;
     private bool _showNoisyCounter = true;
-    private bool _letterDismissed;
     private bool _skipFirst3Min = true;
     private int _skipFirstMinutes = 3;
     private double _noisySustainSeconds = 1.0;
@@ -37,21 +36,20 @@ public class PluginSettings : INotifyPropertyChanged
     private int _clockFontSize = 180;
     private double _clockPositionPercent = 30;      // 时钟中心在主体区高度的 30% 处
     private double _volumePositionPercent = 80;     // 音量条中心在主体区高度的 80% 处
-    private int _courseInfoFontSize = 28;
+    private int _courseInfoFontSize = 30;
     private int _countFontSize = 24;
     private int _themeMode;
     private int _appliedPaletteVariant = ClockTheme.VariantUnknown;
-    private bool _backgroundEnabled;
+    private bool _backgroundEnabled = false;
     private bool _backgroundSectionExpanded;
+    private int _backgroundKind = (int)EveningSelfStudyClock.Models.BackgroundKind.Wallpaper;
     private int _backgroundThemeMode;
     private string _backgroundImageFile = "";
     private int _backgroundImageStretch;
     private double _backgroundDim;
-    private int _glassMode;
-    private double _glassOpacity = 35;
-    private double _glassBlurRadius = 24;
-    private double _glassRefraction = 50;
-    private double _glassFrost = 45;
+    private double _wallpaperZoom = 1.15;
+    private double _wallpaperBlurRadius = 24;
+    private double _animationSpeed = 1.0;
     private string _windowTitle = "大屏时钟";
     private bool _showReminderPanel = true;
     private bool _showWeatherReminder = true;
@@ -69,19 +67,37 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _cameraListFilled;
     private ObservableCollection<string> _monitoredCameras = new();
 
+    /// <summary>
+    /// 目标课程的科目 Id（= CI 课表里 Subjects 字典的键）。与 <see cref="TargetCourseNames"/>
+    /// 一一对应存一份：同名但绑定了不同科目的课，只靠名字区分不开，必须靠这个 Id。
+    /// 老配置没有这一项时按名字匹配（向后兼容）。
+    /// </summary>
+    private ObservableCollection<string> _targetCourseIds = new();
+
     public PluginSettings()
     {
         _targetCourseNames.CollectionChanged += (_, _) => OnPropertyChanged(nameof(TargetCourseNames));
+        _targetCourseIds.CollectionChanged += (_, _) => OnPropertyChanged(nameof(TargetCourseIds));
         _monitoredCameras.CollectionChanged += (_, _) => OnPropertyChanged(nameof(MonitoredCameras));
     }
 
     /// <summary>
-    /// 触发全屏时钟的课程名称列表（精确匹配：名称完全相同才触发，见 <see cref="CourseMatch"/>）
+    /// 触发全屏时钟的课程名称列表（精确匹配：名称完全相同才触发，见 <see cref="CourseMatch"/>）。
+    /// 只是给人看的名字；真正的身份以 <see cref="TargetCourseIds"/> 为准。
     /// </summary>
     public ObservableCollection<string> TargetCourseNames
     {
         get => _targetCourseNames;
         set { _targetCourseNames = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// 触发全屏时钟的科目 Id 列表（CI 的 Guid）。同名课程靠它区分。
+    /// </summary>
+    public ObservableCollection<string> TargetCourseIds
+    {
+        get => _targetCourseIds;
+        set { _targetCourseIds = value; OnPropertyChanged(); }
     }
 
     /// <summary>
@@ -160,16 +176,17 @@ public class PluginSettings : INotifyPropertyChanged
         set { _appliedPaletteVariant = value; OnPropertyChanged(); }
     }
 
-    // ===== 背景图片与玻璃底 =====
+    // ===== 背景图片与背景类型 =====
     // 选中的图片会被复制一份到插件配置目录，这里只记副本的文件名（原图被挪走/删掉也不影响）。
-    // 没选图片时下面这些项全部不生效，外观与以前逐像素一致。
+    // 背景层由 BackgroundKind 决定（壁纸 / 纯色 / 自定义图片），三种都照常铺底。
 
     /// <summary>
-    /// 背景总开关：关着的时候下面这一整组（背景图 + 玻璃 + 背景主题）全部不生效，
-    /// 外观与「没有这套功能」时逐像素一致，主题也仍由外观里那项决定。
+    /// 「背景说了算」开关：开着时主题由 <see cref="BackgroundThemeMode"/> 决定（按背景明暗自动/固定亮暗），
+    /// 关着时仍由外观里那项 <see cref="ThemeMode"/> 决定。
     ///
-    /// 默认关闭 —— 升级上来的配置没有这个字段，默认开着的话会在用户没点过任何东西的情况下
-    /// 把他的主题换成背景那套。
+    /// 注意背景层本身（壁纸/纯色/自定义图）不受它影响 —— 背景类型改由 <see cref="BackgroundKind"/> 决定，
+    /// 三种类型都会照常铺底。这个标记只用于「主题跟谁走」这一件事，设置页里不再单独露出；
+    /// 默认关（主题仍由外观里的「主题」那一项决定），老配置里若它本来是开着的则维持原语义。
     /// </summary>
     public bool BackgroundEnabled
     {
@@ -193,12 +210,8 @@ public class PluginSettings : INotifyPropertyChanged
     /// <summary>
     /// 设置页正在拖「位置 / 字号」这类连着改布局的滑块（松手 300 毫秒后自动归假）。
     ///
-    /// 拖动期间大屏与预览的玻璃整层收起。原因见 <see cref="Views.BackdropLayer"/>：玻璃那层每帧
-    /// 要画十二块圆角投影 + 整屏折射图 + 整屏清晰图，Skia 每帧出的好几个整屏中间面排着队释放不掉，
-    /// 内存顶着 CI 的看门狗上限走（现象是「一调位置大小就闪退」），画面本身也只是一片拖影。
-    ///
-    /// 纯界面状态，不存盘；<see cref="Plugin.Initialize"/> 里另外兜底归零一次，
-    /// 免得万一被序列化下来，下次启动玻璃就一直是收起的。
+    /// 拖动期间大屏与预览把背景的「明暗遮罩 + 过渡」暂时收一收（见 <see cref="Views.BackgroundLayer"/>），
+    /// 免得每帧重算整屏背景。纯界面状态，不存盘；<see cref="Plugin.Initialize"/> 里另外兜底归零一次。
     /// </summary>
     [JsonIgnore]
     public bool AdjustingLayout
@@ -251,49 +264,44 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 玻璃底：0 = 关闭，1 = 半透明，2 = 磨砂模糊，3 = 真•高光折射。
+    /// 背景类型：0 = 提取当前壁纸，1 = 纯色背景，2 = 自定义图片（见 <see cref="BackgroundKind"/>）。
+    /// 默认「提取当前壁纸」——开箱就是桌面壁纸做底，不用先去设置里挑一张。
     /// </summary>
-    public int GlassMode
+    public int BackgroundKind
     {
-        get => _glassMode;
-        set { _glassMode = Math.Clamp(value, 0, 3); OnPropertyChanged(); }
+        get => _backgroundKind;
+        set { _backgroundKind = Math.Clamp(value, 0, 2); OnPropertyChanged(); }
     }
 
     /// <summary>
-    /// 玻璃浓度：玻璃那层底色（黑暗主题=黑、明亮主题=白）的不透明度百分比。
+    /// 壁纸「景深放大」倍率（1.0 ~ 1.6，默认 1.15）。
+    /// 壁纸比屏幕大一圈、再多糊一层，画面才有「镜头在墙外一层」的纵深；1.0 = 不放大。
+    /// 只对「提取当前壁纸」生效。
     /// </summary>
-    public double GlassOpacity
+    public double WallpaperZoom
     {
-        get => _glassOpacity;
-        set { _glassOpacity = Math.Clamp(value, 0, 100); OnPropertyChanged(); }
+        get => _wallpaperZoom;
+        set { _wallpaperZoom = Math.Clamp(value, 1.0, 1.6); OnPropertyChanged(); }
     }
 
     /// <summary>
-    /// 磨砂颗粒度（模糊半径），决定糊底图本身糊得多细。仅「磨砂」档用它。
+    /// 壁纸模糊半径（0 ~ 64 屏幕像素，默认 24）。数值按 1080p 视觉调，4K 上按比例放大。
+    /// 只对「提取当前壁纸」生效。
     /// </summary>
-    public double GlassBlurRadius
+    public double WallpaperBlurRadius
     {
-        get => _glassBlurRadius;
-        set { _glassBlurRadius = Math.Clamp(value, 0, 64); OnPropertyChanged(); }
+        get => _wallpaperBlurRadius;
+        set { _wallpaperBlurRadius = Math.Clamp(value, 0, 64); OnPropertyChanged(); }
     }
 
     /// <summary>
-    /// 折射强度，仅「真•高光折射」档生效。越大边缘把画面推得越弯。
+    /// 开屏/退场的动画速率（倍率，0.5~2.0，越大越快，1.0 = 默认时长）。
+    /// 影响：开屏压暗截图的停留、背景交叉淡入、壁纸推近、组件淡入、退出时的淡出。
     /// </summary>
-    public double GlassRefraction
+    public double AnimationSpeed
     {
-        get => _glassRefraction;
-        set { _glassRefraction = Math.Clamp(value, 0, 100); OnPropertyChanged(); }
-    }
-
-    /// <summary>
-    /// 雾面浓度，仅「真•高光折射」档生效。清晰画面里掺多少糊底图：0 = 纯清玻璃，100 = 全糊。
-    /// 背后那张花壁纸原样透过去会把压在上面的字淹掉，这条给可读性兜底。
-    /// </summary>
-    public double GlassFrost
-    {
-        get => _glassFrost;
-        set { _glassFrost = Math.Clamp(value, 0, 100); OnPropertyChanged(); }
+        get => _animationSpeed;
+        set { _animationSpeed = Math.Clamp(value, 0.5, 2.0); OnPropertyChanged(); }
     }
 
     /// <summary>
@@ -349,16 +357,6 @@ public class PluginSettings : INotifyPropertyChanged
     {
         get => _showDecibelMeter;
         set { _showDecibelMeter = value; OnPropertyChanged(); }
-    }
-
-    /// <summary>
-    /// 致用户的一封信已经勾了「不再显示」：勾过就再也不会弹（没勾的话每次启动 CI 只在
-    /// 第一次打开设置页时弹一次）。
-    /// </summary>
-    public bool LetterDismissed
-    {
-        get => _letterDismissed;
-        set { _letterDismissed = value; OnPropertyChanged(); }
     }
 
     /// <summary>
@@ -665,6 +663,166 @@ public class PluginSettings : INotifyPropertyChanged
         set { _cameraListFilled = value; OnPropertyChanged(); }
     }
 
+    // ===== 组件（逐元素的大小 / 位置 / 外框 / 底色）=====
+    // 每个组件一份 ComponentLayout，按稳定 id（见 ComponentCatalog）存在字典里。
+    // 字典里没有的 id 说明是老配置或者从没调过，GetComponentLayout 会补一份默认值出来，
+    // 所以老用户升级上来外观一个像素都不变，而设置页永远有东西可绑。
+
+    private Dictionary<string, ComponentLayout> _componentLayouts = new();
+
+    /// <summary>
+    /// 各组件的外观与位置微调（id → <see cref="ComponentLayout"/>）。
+    /// 存进 Settings.json；缺项按默认值处理（见 <see cref="GetComponentLayout"/>）。
+    /// </summary>
+    public Dictionary<string, ComponentLayout> ComponentLayouts
+    {
+        get => _componentLayouts;
+        set
+        {
+            // 反序列化/换字典时先退订旧的那批，避免把整张旧字典一直挂在事件上
+            foreach (var layout in _componentLayouts.Values) UnsubscribeComponentLayout(layout);
+
+            _componentLayouts = value ?? new Dictionary<string, ComponentLayout>();
+            foreach (var layout in _componentLayouts.Values) SubscribeComponentLayout(layout);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// 取某个组件的布局设置；没有就按默认值补一份（补出来的这份会跟着下次存盘一起写进 Settings.json）。
+    /// 监听具体某一项改动由使用方自己挂（见 Views/ComponentHost.cs）；这里的订阅只负责把改动冒泡成
+    /// Settings 的变更，好让「防抖存盘」把它写进 Settings.json。
+    /// </summary>
+    public ComponentLayout GetComponentLayout(string id)
+    {
+        if (_componentLayouts.TryGetValue(id, out var layout) && layout is not null)
+            return layout;
+
+        layout = new ComponentLayout();
+        _componentLayouts[id] = layout;
+        SubscribeComponentLayout(layout);
+        return layout;
+    }
+
+    /// <summary>把清单里所有组件的布局设置都补出来（插件启动时调一次，旧配置升级后字典也是全的）。</summary>
+    public void EnsureComponentLayouts()
+    {
+        foreach (var descriptor in ComponentCatalog.All)
+            GetComponentLayout(descriptor.Id);
+    }
+
+    /// <summary>
+    /// 一键重置：把所有公开设置项恢复成出厂默认（组件开关/顺序/大小位置、颜色字号、音量阈值、
+    /// 背景与运行设置全在内）。做法是拿一份全新的 <see cref="PluginSettings"/> 当模板逐项拷贝，
+    /// 这样默认值只写在字段声明处，以后新增设置项不用再来改这里。
+    ///
+    /// 不重置的三项：<see cref="AdjustingLayout"/>（拖动中的运行时状态）、
+    /// <see cref="AppliedPaletteVariant"/>（主题跟随状态，不是用户设置）、
+    /// <see cref="ComponentLayouts"/>（字典要整体换成默认实例，单独处理）。
+    /// </summary>
+    public void ResetAllToDefaults()
+    {
+        var defaults = new PluginSettings();
+
+        foreach (var property in typeof(PluginSettings).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            if (!property.CanRead || !property.CanWrite) continue;
+            if (property.GetIndexParameters().Length > 0) continue;
+
+            switch (property.Name)
+            {
+                case nameof(ComponentLayouts):
+                case nameof(AdjustingLayout):
+                case nameof(AppliedPaletteVariant):
+                // 迁移版本不能回 0：否则下次启动会再跑一遍「旧显示开关 → 组件启用」的迁移，
+                // 把用户重置后手动关掉的组件又全部打开。
+                case nameof(ComponentVisibilityMigrationVersion):
+                    continue;
+            }
+
+            try
+            {
+                property.SetValue(this, property.GetValue(defaults));
+            }
+            catch
+            {
+                // 单个属性拷贝失败不该让整次重置失败
+            }
+        }
+
+        // 组件布局换成一套全新的默认实例（setter 会负责退订旧字典、订阅新字典并通知）。
+        defaults.EnsureComponentLayouts();
+        ComponentLayouts = defaults.ComponentLayouts;
+    }
+
+    /// <summary>
+    /// 「组件启用」迁移版本：0 = 还没迁移过（旧版把显隐拆成一堆 ShowXxx 开关，组件化后改由
+    /// ComponentLayout.Enabled 统一管）。迁移完置 1，之后不再动用户的设置。
+    /// </summary>
+    public int ComponentVisibilityMigrationVersion
+    {
+        get => _componentVisibilityMigrationVersion;
+        set { _componentVisibilityMigrationVersion = value; OnPropertyChanged(); }
+    }
+
+    private int _componentVisibilityMigrationVersion;
+
+    /// <summary>
+    /// 一次性把旧的显示开关搬进组件的启用开关：原本关掉某个组件的用户，迁移后还是关掉的，
+    /// 不会因为「组件默认全开」突然多出一堆东西。搬完把旧开关置真（大屏侧已经不再看它们，
+    /// 留着真值只是免得老配置里残留的 false 在别处又冒出来）。
+    /// </summary>
+    public void MigrateLegacyComponentVisibility()
+    {
+        if (ComponentVisibilityMigrationVersion >= 1) return;
+
+        void Move(string componentId, bool visible) => GetComponentLayout(componentId).Enabled = visible;
+
+        Move("volume", ShowDecibelMeter);
+        Move("course", ShowCourseInfo);
+        Move("counter", ShowNoisyCounter);
+        Move("reminderPanel", ShowReminderPanel);
+        Move("weather", ShowWeatherReminder);
+        Move("alertDetail", ShowAlertsReminder);
+        Move("countdownMerge", ShowCountdownReminder);
+        Move("textMerge", ShowTextReminder);
+        Move("rainMerge", ShowRainReminder);
+        Move("earthquake", ShowEarthquakeReminder);
+
+        ShowDecibelMeter = true;
+        ShowCourseInfo = true;
+        ShowNoisyCounter = true;
+        ShowReminderPanel = true;
+        ShowWeatherReminder = true;
+        ShowAlertsReminder = true;
+        ShowCountdownReminder = true;
+        ShowTextReminder = true;
+        ShowRainReminder = true;
+        ShowEarthquakeReminder = true;
+
+        ComponentVisibilityMigrationVersion = 1;
+    }
+
+    private void SubscribeComponentLayout(ComponentLayout? layout)
+    {
+        if (layout is null) return;
+        layout.PropertyChanged -= OnComponentLayoutPropertyChanged;
+        layout.PropertyChanged += OnComponentLayoutPropertyChanged;
+    }
+
+    private void UnsubscribeComponentLayout(ComponentLayout? layout)
+    {
+        if (layout is null) return;
+        layout.PropertyChanged -= OnComponentLayoutPropertyChanged;
+    }
+
+    /// <summary>
+    /// 组件布局也是设置的一部分：冒泡成 <see cref="ComponentLayouts"/> 的变更，
+    /// 这样 Plugin 里挂的 400ms 防抖存盘才会把滑块改动写进 Settings.json。
+    /// </summary>
+    private void OnComponentLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        => OnPropertyChanged(nameof(ComponentLayouts));
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -673,8 +831,14 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 检查课程名是否在目标列表中（精确匹配，规则见 <see cref="CourseMatch"/>）
+    /// 检查一门课是否命中目标课程。
+    /// 优先按科目 Id 匹配（能区分同名但绑定了不同科目的课）；
+    /// 老配置没有 Id、或当前拿不到 Id 时，退回按名字精确匹配（<see cref="CourseMatch"/>）。
     /// </summary>
-    public bool IsTargetCourse(string? courseName)
-        => CourseMatch.IsMatch(courseName, TargetCourseNames);
+    public bool IsTargetCourse(string? courseName, string? subjectId = null)
+    {
+        if (!string.IsNullOrWhiteSpace(subjectId) && TargetCourseIds.Count > 0)
+            return TargetCourseIds.Contains(subjectId);
+        return CourseMatch.IsMatch(courseName, TargetCourseNames);
+    }
 }

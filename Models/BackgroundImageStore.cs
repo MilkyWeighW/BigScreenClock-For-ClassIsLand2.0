@@ -33,12 +33,25 @@ public static class BackgroundImageStore
     /// 连着换两张同格式的图（jpg 换 jpg），设置里那个字符串没变，
     /// PropertyChanged 就不会发，大屏和预览都还以为没换过。
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// 配置目录不可用，或文件头认不出图片格式（<see cref="ImageHeader.ReadSize"/> 返回 null）。
+    /// 抛异常前没有动过任何文件，也没有改设置。
+    /// </exception>
     public static void Replace(string sourcePath, PluginSettings settings)
     {
         var folder = Plugin.ConfigFolder;
         if (string.IsNullOrWhiteSpace(folder)) throw new InvalidOperationException("插件配置目录不可用");
 
         Directory.CreateDirectory(folder);
+
+        // 先认文件头再复制：认不出格式的图（改名成 .png 的 AVIF/HEIC/TIFF 之类）收进来也没用 ——
+        // 解码那一步拿不到原图尺寸，只能按屏幕像素放大着解，一张小图就能吃掉几百兆内存。
+        // 在这里就挡下来，用户还能看到一句明确的失败原因；旧图与设置都原样不动。
+        if (ImageHeader.ReadSize(sourcePath) is null)
+        {
+            throw new InvalidOperationException(
+                "不支持的图片格式：只支持 PNG / JPEG / BMP / GIF / WebP。请换一张这些格式的图片（改了扩展名也不行）。");
+        }
 
         var name = BaseName + "-" + DateTime.Now.ToString("yyyyMMddHHmmssfff")
                    + Path.GetExtension(sourcePath).ToLowerInvariant();

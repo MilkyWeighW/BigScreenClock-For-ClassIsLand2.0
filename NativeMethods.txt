@@ -17,3 +17,30 @@ IMFSensorProcessActivity
 IMFSensorActivitiesReportCallback
 MFSensorDeviceMode
 CoTaskMemFree
+
+// 背景系统（WallpaperService / ScreenCaptureService）用到的 GDI 与 Shell API。
+GetDC
+ReleaseDC
+CreateCompatibleDC
+DeleteDC
+CreateCompatibleBitmap
+SelectObject
+BitBlt
+DeleteObject
+GetSystemMetrics
+GetDIBits
+BITMAPINFO
+BITMAPINFOHEADER
+SystemParametersInfo
+SYSTEM_PARAMETERS_INFO_ACTION
+ROP_CODE
+SYSTEM_METRICS_INDEX
+DIB_USAGE
+
+// ClassIsland 置顶（CiTopmostGuard）用到的窗口枚举与 Z 序 API。
+EnumWindows
+GetWindowThreadProcessId
+IsWindowVisible
+SetWindowPos
+HWND_TOPMOST
+SET_WINDOW_POS_FLAGS

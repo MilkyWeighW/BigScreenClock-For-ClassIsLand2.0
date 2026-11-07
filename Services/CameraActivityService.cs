@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using EveningSelfStudyClock.Models;
 using Windows.Win32;
 using Windows.Win32.Foundation;
@@ -52,6 +53,15 @@ public sealed class CameraActivityService : IDisposable
     /// <summary>开始监控（大屏时钟显示时调用）。重复调用无副作用。</summary>
     public void StartMonitoring()
     {
+        // MF 传感器活动接口是 Windows 10 1703（10.0.15063）才有的，老系统直接静默关闭。
+        // 这个运行时判断同时让 CA1416 分析器确认下面调用的新 API 有平台守卫。
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063))
+        {
+            IsSupported = false;
+            LastError = "摄像头占用检测需要 Windows 10 1703 及以上";
+            return;
+        }
+
         if (_started) return;
         try
         {
@@ -89,7 +99,10 @@ public sealed class CameraActivityService : IDisposable
     public void StopMonitoring()
     {
         if (!_started) return;
-        try { _monitor?.Stop(); }
+        try
+        {
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063)) _monitor?.Stop();
+        }
         catch { /* 监视器已失效，忽略 */ }
 
         _started = false;
@@ -150,8 +163,13 @@ public sealed class CameraActivityService : IDisposable
     }
 
     /// <summary>MF 活动上报回调（MF 的后台线程调用）：把上报整理解成占用快照。</summary>
+    [SupportedOSPlatform("windows10.0.15063")]
     private void OnActivitiesReport(IMFSensorActivitiesReport report)
     {
+        // 与 StartMonitoring 同一个平台要求；这条路径是 MF 后台线程回调，正常只有 1703+ 才会调到，
+        // 这里的守卫只是让分析器与「误回调」两种情况都安全。
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063)) return;
+
         var list = new List<CameraActivity>();
         try
         {
@@ -274,6 +292,7 @@ public sealed class CameraActivityService : IDisposable
 
         public void OnActivitiesReport(IMFSensorActivitiesReport report)
         {
+            if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063)) return;
             try { _onReport(report); }
             catch { /* 回调里不能再抛出去 */ }
         }

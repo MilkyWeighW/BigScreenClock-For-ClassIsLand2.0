@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Media.Transformation;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -42,8 +43,8 @@ public partial class ClockSurface : UserControl
     /// </summary>
     public CornerRadius BackdropCornerRadius
     {
-        get => Backdrop.CornerRadius;
-        set => Backdrop.CornerRadius = value;
+        get => BackLayer.CornerRadius;
+        set => BackLayer.CornerRadius = value;
     }
 
     public ClockSurface()
@@ -57,6 +58,8 @@ public partial class ClockSurface : UserControl
             UpdateSizeDependentLayout();
             SetupBackdrop();
             UpdatePreviewPlaceholders();
+            ApplyComponentVisibility();
+            ApplyComponentOrder();
         };
 
         // 时钟/音量条的上下位置：主体区或两块自身的尺寸一变（换字号、开关注音条、内容行数变化）就重算
@@ -68,8 +71,15 @@ public partial class ClockSurface : UserControl
         BodyArea.SizeChanged += (_, _) => ApplyBodyPositions();
         ClockText.SizeChanged += (_, _) => ApplyBodyPositions();
         VolumePanel.SizeChanged += (_, _) => ApplyBodyPositions();
+        ClockHost.SizeChanged += (_, _) => ApplyBodyPositions();
+        VolumeHost.SizeChanged += (_, _) => ApplyBodyPositions();
         Loaded += (_, _) => ApplyBodyPositions();
         Loaded += (_, _) => UpdatePreviewPlaceholders();
+        Loaded += (_, _) =>
+        {
+            ApplyComponentVisibility();
+            ApplyComponentOrder();
+        };
     }
 
     // ===== 生命周期：挂上/摘掉那几根「全局事件」的线 =====
@@ -129,6 +139,17 @@ public partial class ClockSurface : UserControl
 
     private void OnPluginSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        // 组件页（启用/排序/大小/位置）改的是 ComponentLayout 字典里的对象；
+        // PluginSettings 会在任何一份布局变动时冒泡一个 ComponentLayouts 通知，这里接住：
+        // 显隐与分区顺序重算，位置再排一遍（大小/位置本身由 ComponentHost 自己跟）。
+        if (e.PropertyName is nameof(PluginSettings.ComponentLayouts))
+        {
+            ApplyComponentVisibility();
+            ApplyComponentOrder();
+            ApplyBodyPositions();
+            return;
+        }
+
         // 设置页拖滑块改的是同一个 PluginSettings 实例 → 立刻重排，不用等重开窗口
         if (e.PropertyName is nameof(PluginSettings.ClockPositionPercent)
             or nameof(PluginSettings.VolumePositionPercent)
@@ -150,16 +171,18 @@ public partial class ClockSurface : UserControl
         OnBackdropSettingsChanged(sender, e);
     }
 
-    // ===== 背景图 + 组件玻璃底 =====
+    // ===== 背景层 =====
 
-    /// <summary>玻璃层只初始化一次（DataContext 可能来不止一次）。</summary>
+    /// <summary>背景层只初始化一次（DataContext 可能来不止一次）。</summary>
     private bool _backdropBound;
 
+    /// <summary>开屏过渡正在演：避免重复调用叠在一起。</summary>
+    private bool _introRunning;
+
     /// <summary>
-    /// 把要垫玻璃的组件登记给背景层，并接上「什么时候要重画玻璃」的几根线。
+    /// 接上背景层：套一次静态值，并挂好「设置页改了背景相关项 → 立刻生效」这条线。
     ///
-    /// 玻璃是从底下一整层画的，不参与布局，所以这里只登记控件本身，不碰它们的 Margin / 尺寸——
-    /// ApplyBodyPositions 那套定位与写回一个字节都不用改。
+    /// 背景层不参与布局（组件的 Margin / 尺寸一个都没动），ApplyBodyPositions 那套定位与写回不受影响。
     /// </summary>
     private void SetupBackdrop()
     {
@@ -169,60 +192,187 @@ public partial class ClockSurface : UserControl
         {
             _backdropBound = true;
 
-            // 全部独立组件各垫一块；地震提醒块刻意不垫 —— 它在整屏正中，底下正好压着时钟，
-            // 登记进来磨砂会跑到时钟下面、时钟的字反而浮在磨砂上面。
-            // 它自己从背景层那张模糊图上裁一块（见 FrostedCardBackdrop）。
-            // 底部全宽进度带不垫（语义色带，垫了反而糊）。
-            EqFrost.Layer = Backdrop;
-            QuakeSheet.Layer = Backdrop;   // 整屏那层磨砂，同一张模糊图
-            Backdrop.GlassTargets = new GlassTarget[]
-            {
-                new() { Visual = WeatherBlock },
-                new() { Visual = RainBlock },
-                new() { Visual = CountdownBlock },
-                new() { Visual = ReminderTextBlock },
-                new() { Visual = AlertDetailScroll },
-                new() { Visual = DateBlock },
-                new() { Visual = ClockText, InsetX = 16, InsetY = 8, Radius = 16 },
-                new() { Visual = VolumePanel, InsetX = 16, InsetY = 8, Radius = 16 },
-                new() { Visual = CounterStrip },
-                new() { Visual = CourseInfoBox },
-                new() { Visual = ButtonBar },
-                new() { Visual = ReminderPanel },
-            };
-
-            // 组件挪了/隐了就得重画玻璃。Avalonia 是保留式渲染，兄弟控件动了不会叫醒背景层，
-            // 所以直接在各个目标身上盯 Bounds 与 IsVisible——位置或尺寸一变必然走这两条。
-            foreach (var target in new Control[]
-                     {
-                         WeatherBlock, RainBlock, CountdownBlock, ReminderTextBlock,
-                         AlertDetailScroll, DateBlock, ClockText, VolumePanel,
-                         CounterStrip, CourseInfoBox, ButtonBar, ReminderPanel,
-                     })
-            {
-                target.PropertyChanged += OnGlassTargetPropertyChanged;
-            }
-
-            // 设置页里改背景/玻璃相关项 → 立刻生效，不用重开窗口。
-            // 挂线统一走 HookSignals（进视觉树时挂、离开时摘），在那儿挂的是一根
-            // OnPluginSettingsChanged，位置/音量条与背景/玻璃两类通知都从它转发过来。
+            // 设置页里改背景相关项 → 立刻生效，不用重开窗口。
+            // 挂线统一走 HookSignals（进视觉树时挂、离开时摘）。
             HookSignals();
-
-            Loaded += (_, _) => Backdrop.InvalidateGlass();
         }
 
         ApplyButtonHalo();
         ApplyBackdrop();
     }
 
-    private void OnGlassTargetPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    /// <summary>
+    /// 窗口显示之前调用：先把内容层收起来，避免窗口出现的第一帧把整个界面「闪」出来。
+    /// 真正的开屏过渡仍由 <see cref="BeginIntro"/> 驱动；窗口没走过渡（比如预览）时不会被这个影响。
+    /// </summary>
+    public void PrepareIntro()
     {
-        if (e.Property == Visual.BoundsProperty || e.Property == Visual.IsVisibleProperty)
-            Backdrop.InvalidateGlass();
+        if (IsPreview) return;
+        // 关键：上一次开屏结束时给 ContentLayer 挂过淡入用的 Transitions，
+        // 如果不清掉，这次把 Opacity 设 0 会变成「从 1 慢慢淡出到 0」——
+        // 于是第二次开屏时界面会先整块露一下再消失，正是「只有第一次不闪」的原因。
+        ContentLayer.Transitions = null;
+        ContentLayer.Opacity = 0;
+        // 背景层同样瞬时收掉：否则第二次开屏的第一帧会先露出上一轮的壁纸，再开始过渡。
+        BackLayer.PrepareForIntro();
+    }
+
+    /// <summary>
+    /// 由全屏窗口在「窗口显示之后」显式调用，每次显示都重演一遍开屏过渡。
+    /// <paramref name="priorScreenshot"/> 是窗口显示前拍好的当前屏幕（干净、不含大屏自己）。
+    /// </summary>
+    public void BeginIntro(Bitmap? priorScreenshot)
+    {
+        _ = PlayIntroAsync(priorScreenshot);
+    }
+
+    /// <summary>
+    /// 开屏过渡：设置页预览不演。
+    /// 背景层负责「截图压暗 → 交叉淡入新背景」，这里负责让整层内容跟着一起淡入。
+    /// 动画时长跟着设置里的「动画速率」走。
+    /// </summary>
+    private async Task PlayIntroAsync(Bitmap? priorScreenshot)
+    {
+        if (IsPreview || _introRunning) return;
+        if (Plugin.Settings is not { } settings)
+        {
+            // 没有设置就演不了：别把内容层留在隐藏状态，直接显示
+            ContentLayer.Transitions = null;
+            ContentLayer.Opacity = 1;
+            return;
+        }
+
+        _introRunning = true;
+        try
+        {
+            var fadeMs = Math.Max(16, (int)Math.Round(520 / Math.Clamp(settings.AnimationSpeed, 0.5, 2.0)));
+
+            // 清掉上一轮的淡入过渡，确保这里的 0 是瞬时的（否则会看到界面淡出而不是直接藏起来）
+            ContentLayer.Transitions = null;
+            ContentLayer.Opacity = 0;
+            await BackLayer.PlayIntroAsync(settings, () =>
+            {
+                ContentLayer.Transitions = new Transitions
+                {
+                    new DoubleTransition
+                    {
+                        Property = Visual.OpacityProperty,
+                        Duration = TimeSpan.FromMilliseconds(fadeMs),
+                        Easing = new CubicEaseOut(),
+                    },
+                };
+                ContentLayer.Opacity = 1;
+            }, priorScreenshot);
+
+            // 兜底：背景过渡被中途取消（窗口又 Hide 了等）时回调可能没跑到，
+            // 别让内容层一直停在隐藏状态。
+            if (ContentLayer.Opacity < 0.01)
+            {
+                ContentLayer.Transitions = null;
+                ContentLayer.Opacity = 1;
+            }
+        }
+        finally
+        {
+            _introRunning = false;
+        }
+    }
+
+    // ===== 组件的显隐与分区内顺序 =====
+
+    /// <summary>
+    /// 每个组件最终的显隐 = 「设置里这个组件的启用开关」与「这一刻它该不该出现」（VM 的显示条件）的与。
+    /// 两件事都落在外壳 <see cref="ComponentHost"/> 的 IsVisible 上（不能只隐藏内层：StackPanel 的
+    /// Spacing 会把零宽的孩子也算进去，关掉一个会留下一条空档）。
+    /// </summary>
+    private void ApplyComponentVisibility()
+    {
+        var settings = Plugin.Settings;
+        var vm = DataContext as FullScreenClockViewModel;
+
+        void Set(ComponentHost host, Func<FullScreenClockViewModel, bool>? condition)
+        {
+            var enabled = settings is null || settings.GetComponentLayout(host.ComponentId).Enabled;
+            var wanted = condition is null || (vm is not null && condition(vm));
+            host.IsVisible = enabled && wanted;
+        }
+
+        // 时钟 / 日期 / 吵闹计数没有额外的显隐条件，只看启用开关
+        Set(ClockHost, null);
+        Set(DateHost, null);
+        Set(CounterHost, null);
+
+        Set(WeatherHost, v => v.ShowWeatherInFirstRow);
+        Set(RainHost, v => v.ShowRainMergedInFirstRow);
+        Set(CountdownHost, v => v.ShowCountdownMergedInFirstRow);
+        Set(TextHost, v => v.ShowTextMergedInFirstRow);
+        Set(AlertDetailHost, v => v.HasExpandedAlert);
+        Set(EarthquakeHost, v => v.ShowEarthquakeAlert);
+
+        // 下面这几个的「开不开」已经收口到组件自己的启用开关（旧配置在启动时迁移成 Enabled），
+        // 大屏侧只负责按时隐藏，不再看旧的 ShowXxx 设置。
+        Set(VolumeHost, null);
+        Set(CourseHost, null);
+        Set(ReminderPanelHost, null);
+        Set(ProgressHost, null);
+    }
+
+    /// <summary>
+    /// 同一分区内的先后：Order 小的在前（null 按组件清单顺序）。
+    /// 现在只有「顶部第一行」的四块（天气/降雨/倒计时/文本）真的能换位——它们挤在同一个
+    /// StackPanel 里，换个顺序就是换位置；预警详情与日期各自钉在中间/右边，主体、底部同理，
+    /// 顺序对它们只影响设置页里排在列表第几位。
+    /// </summary>
+    private void ApplyComponentOrder()
+    {
+        if (Plugin.Settings is not { } settings) return;
+
+        var ordered = new[] { WeatherHost, RainHost, CountdownHost, TextHost }
+            .OrderBy(h => EffectiveOrder(settings, h.ComponentId))
+            .ToArray();
+
+        var flow = TopMergeFlow.Children;
+        for (var target = 0; target < ordered.Length; target++)
+        {
+            var current = flow.IndexOf(ordered[target]);
+            if (current != target) flow.Move(current, target);
+        }
+
+        // 时钟和音量条谁在上也看 Order（在 ApplyBodyPositions 里按它分支）
+        ApplyBodyPositions();
+    }
+
+    /// <summary>组件的有效位次：设置里排过就用它，没排过按组件清单的顺序。</summary>
+    private static int EffectiveOrder(PluginSettings settings, string componentId)
+    {
+        if (settings.GetComponentLayout(componentId).Order is { } order) return order;
+
+        var all = ComponentCatalog.All;
+        for (var i = 0; i < all.Count; i++)
+            if (string.Equals(all[i].Id, componentId, StringComparison.Ordinal))
+                return i;
+        return int.MaxValue;
     }
 
     private void OnClockViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        // 这些属性决定「这个组件这会儿该不该出现」（合并到顶部行/弹幕/提醒面板等），
+        // 组件自己的启用开关由 ApplyComponentVisibility 一起算进去。
+        if (e.PropertyName is nameof(FullScreenClockViewModel.ShowWeatherInFirstRow)
+            or nameof(FullScreenClockViewModel.ShowRainMergedInFirstRow)
+            or nameof(FullScreenClockViewModel.ShowCountdownMergedInFirstRow)
+            or nameof(FullScreenClockViewModel.ShowTextMergedInFirstRow)
+            or nameof(FullScreenClockViewModel.HasExpandedAlert)
+            or nameof(FullScreenClockViewModel.ShowDecibelMeter)
+            or nameof(FullScreenClockViewModel.ShowCourseInfo)
+            or nameof(FullScreenClockViewModel.ShowReminderPanel)
+            or nameof(FullScreenClockViewModel.ShowCourseProgress)
+            or nameof(FullScreenClockViewModel.ShowEarthquakeAlert))
+        {
+            ApplyComponentVisibility();
+            ApplyBodyPositions();
+        }
+
         // 换主题 / 自动配色下换背景色 → 玻璃的底色、描边、留白色整批跟着变
         if (e.PropertyName is nameof(FullScreenClockViewModel.Chrome)
             or nameof(FullScreenClockViewModel.BackgroundColor))
@@ -287,49 +437,44 @@ public partial class ClockSurface : UserControl
 
     private void OnBackdropSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(PluginSettings.BackgroundEnabled)
+        if (e.PropertyName is nameof(PluginSettings.BackgroundKind)
             or nameof(PluginSettings.BackgroundImageFile)
             or nameof(PluginSettings.BackgroundImageStretch)
             or nameof(PluginSettings.BackgroundDim)
-            or nameof(PluginSettings.GlassMode)
-            or nameof(PluginSettings.GlassOpacity)
-            or nameof(PluginSettings.GlassBlurRadius)
-            or nameof(PluginSettings.GlassRefraction)
-            or nameof(PluginSettings.GlassFrost)
-            or nameof(PluginSettings.AdjustingLayout))
+            or nameof(PluginSettings.BackgroundColor)
+            or nameof(PluginSettings.WallpaperZoom)
+            or nameof(PluginSettings.WallpaperBlurRadius)
+            or nameof(PluginSettings.AdjustingLayout)
+            or nameof(PluginSettings.BackgroundEnabled))
             ApplyBackdrop();
     }
 
-    /// <summary>把当前的背景/玻璃设置推给背景层。</summary>
+    /// <summary>把当前的背景设置推给背景层。</summary>
     private void ApplyBackdrop()
     {
         if (DataContext is not FullScreenClockViewModel vm) return;
         if (Plugin.Settings is not { } settings) return;
 
-        // 总开关关着 = 背景图与玻璃一并收掉，哪怕设置里选过图/开过玻璃
-        var on = settings.BackgroundEnabled;
-
-        Backdrop.SetPalette(vm.Chrome, ParseColorOrDefault(vm.BackgroundColor, Colors.Black));
+        BackLayer.Apply(settings, IsPreview);
         ApplyQuakeFrost(vm);
-        Backdrop.Apply(on ? BackgroundImageStore.ResolvePath(settings.BackgroundImageFile) : null,
-                       settings.BackgroundImageStretch, settings.BackgroundDim,
-                       on ? settings.GlassMode : (int)GlassMode.Off,
-                       settings.GlassOpacity, settings.GlassBlurRadius, settings.GlassRefraction,
-                       settings.GlassFrost, settings.AdjustingLayout);
     }
 
     /// <summary>
-    /// 地震预警那层「整屏磨砂」的压色：磨砂本身用背景层早烘好的模糊图（现成的，只多画一遍），
-    /// 这里只负责在它上面按亮/暗主题压一档，卡片（不压）才跳得出来。
-    /// QuakeVeil 是没有背景图时的兜底：近乎不透明，把别的都盖住。
+    /// 地震预警那层「整屏压色」：磨砂子系统已经删掉，这里改用一条半透明底色压暗/压亮整屏，
+    /// 卡片自己的底色再叠一层，保证正中那张卡片跳得出来。
+    /// QuakeVeil 是兜底：近乎不透明，把别的都盖住。
     /// </summary>
     private void ApplyQuakeFrost(FullScreenClockViewModel vm)
     {
         var light = vm.Chrome.IsLight;
 
-        QuakeSheet.Tint = new SolidColorBrush(light
+        QuakeSheet.Background = new SolidColorBrush(light
             ? Color.FromArgb(0x3D, 0xFF, 0xFF, 0xFF)
             : Color.FromArgb(0x59, 0x00, 0x00, 0x00));
+
+        EqFrost.Background = new SolidColorBrush(light
+            ? Color.FromArgb(0xB8, 0xFF, 0xFF, 0xFF)
+            : Color.FromArgb(0xC8, 0x12, 0x14, 0x1A));
 
         QuakeVeil.Background = new SolidColorBrush(light
             ? Color.FromArgb(0xE8, 0xFF, 0xFF, 0xFF)
@@ -410,7 +555,7 @@ public partial class ClockSurface : UserControl
     /// 时钟、音量条各自的上下位置。设置里存的是「该块中心落在主体区高度的百分之几」（0 最上、100 最下），
     /// 这里按主体区的实测高度换算成上边距，再钳进这一轮算出来的可落范围（滑块的范围也是同一个）。
     ///
-    /// 两块从上到下依次是：时钟、音量条，谁都不许越界：
+    /// 两块从上到下依次是：时钟、音量条（设置里把音量条挪到时钟前面时顺序反过来），谁都不许越界：
     /// - 时钟不出主体区（顶不出上沿、底不出下沿）；
     /// - 音量条上不了时钟头顶，下不出主体区——再往下就压到「最小化 / 退出」那一行了。
     ///
@@ -433,40 +578,59 @@ public partial class ClockSurface : UserControl
         try
         {
             // 地震提醒是整屏正中的浮层，不参与这里的限位：它来去都不该把时钟顶走
-            const double clockMinTop = 0.0;
+            const double topLimit = 0.0;
 
-            var clockHeight = ClockText.Bounds.Height;
-            var volumeVisible = VolumePanel.IsVisible;
-            var volumeHeight = VolumePanel.Bounds.Height;
+            // 组件化以后 Margins 落在 ComponentHost 上（内层控件不再有自己的偏移），
+            // 所以量高度、摆位置都对着外壳做；内层的高度（字号决定）仍从时钟/音量条取。
+            var clockHeight = ClockHost.Bounds.Height;
+            var volumeVisible = VolumeHost.IsVisible;
+            var volumeHeight = VolumeHost.Bounds.Height;
 
-            // 音量条：上不了时钟头顶，下不出主体区
-            // （再往下就压到「最小化 / 退出」那一行去了，这条优先守住）
-            var volumeMinTop = clockMinTop + clockHeight + ClockVolumeGap;
-            var volumeMaxTop = Math.Max(0, areaHeight - volumeHeight);
-            var volumeTop = volumeVisible
-                ? Math.Min(Math.Max(TopFor(settings.VolumePositionPercent, areaHeight, volumeHeight), volumeMinTop), volumeMaxTop)
-                : 0.0;
+            // 谁在上由组件顺序决定：默认（时钟排在音量条前面）与改造前逐像素一致；
+            // 把音量条拖到时钟前面就镜像过来——音量条贴顶、时钟被挤到它下面。
+            var clockFirst = EffectiveOrder(settings, "clock") <= EffectiveOrder(settings, "volume");
 
-            // 时钟：上不出主体区，下压不到音量条上。装不下时宁可两块挨上也别越界
-            var clockRoomTop = volumeVisible ? volumeTop - ClockVolumeGap - clockHeight : areaHeight - clockHeight;
-            var clockMaxTop = Math.Max(clockMinTop, clockRoomTop);
-            var clockTop = Math.Clamp(TopFor(settings.ClockPositionPercent, areaHeight, clockHeight), clockMinTop, clockMaxTop);
+            double clockTop, clockLower, clockUpper;
+            double volumeTop, volumeLower, volumeUpper;
 
-            if (volumeVisible) SetTop(VolumePanel, volumeTop);
-            SetTop(ClockText, clockTop);
-
-            if (IsPreview) return;   // 预览到此为止：位置摆好了，剩下的都是真实大屏才该做的事
-
-            if (DataContext is FullScreenClockViewModel vm)
+            if (clockFirst)
             {
-                vm.SetPositionLimits(
-                    PercentOf(clockMinTop, areaHeight, clockHeight),
-                    PercentOf(clockMaxTop, areaHeight, clockHeight),
-                    volumeVisible ? PercentOf(Math.Min(clockHeight + ClockVolumeGap, volumeMaxTop), areaHeight, volumeHeight) : 0,
-                    volumeVisible ? PercentOf(volumeMaxTop, areaHeight, volumeHeight) : 100);
+                clockLower = topLimit;                                       // 时钟不出主体区上沿
+                volumeLower = topLimit + clockHeight + ClockVolumeGap;      // 音量条上不了时钟头顶
+                volumeUpper = Math.Max(0, areaHeight - volumeHeight);       // 再往下就压到按钮那一行
+
+                volumeTop = volumeVisible
+                    ? Math.Min(Math.Max(TopFor(settings.VolumePositionPercent, areaHeight, volumeHeight), volumeLower), volumeUpper)
+                    : 0.0;
+
+                // 时钟：上不出主体区，下压不到音量条上。装不下时宁可两块挨上也别越界
+                var clockRoomTop = volumeVisible ? volumeTop - ClockVolumeGap - clockHeight : areaHeight - clockHeight;
+                clockUpper = Math.Max(clockLower, clockRoomTop);
+                clockTop = Math.Clamp(TopFor(settings.ClockPositionPercent, areaHeight, clockHeight), clockLower, clockUpper);
+            }
+            else
+            {
+                // 音量条在上：先把它摆在主体区上半段（上不下邻居，下不出主体区），
+                // 时钟再被压到它下面；两者仍各自守着自己的滑块位置。
+                volumeLower = topLimit;
+                volumeUpper = Math.Max(0, areaHeight - volumeHeight);
+                volumeTop = volumeVisible
+                    ? Math.Clamp(TopFor(settings.VolumePositionPercent, areaHeight, volumeHeight), volumeLower, volumeUpper)
+                    : 0.0;
+
+                clockLower = volumeVisible ? volumeTop + volumeHeight + ClockVolumeGap : topLimit;
+                clockUpper = Math.Max(clockLower, areaHeight - clockHeight);
+                clockTop = Math.Clamp(TopFor(settings.ClockPositionPercent, areaHeight, clockHeight), clockLower, clockUpper);
             }
 
-            WriteBack(settings, areaHeight, clockTop, clockHeight, volumeTop, volumeHeight, volumeVisible);
+            if (volumeVisible) SetTop(VolumeHost, volumeTop);
+            SetTop(ClockHost, clockTop);
+
+            // 只摆位置，不回写设置：
+            // 位置由「组件的位置偏移」负责，这里只是按默认锚点排好；
+            // 以前把钳过的实际位置写回 ClockPositionPercent / VolumePositionPercent，
+            // 会让两个滑块互相顶（时钟被音量条上限钳住 → 写回 → 看起来像被改掉），
+            // 而且「一键重置」刚恢复默认值就被下一轮布局写回去，表现为重置不生效。
         }
         finally
         {
@@ -474,28 +638,9 @@ public partial class ClockSurface : UserControl
         }
     }
 
-    /// <summary>把钳完的实际位置写回设置（差值太小就不写，免得每轮布局都惊动一遍设置）。</summary>
-    private static void WriteBack(PluginSettings settings, double areaHeight,
-                                  double clockTop, double clockHeight,
-                                  double volumeTop, double volumeHeight, bool volumeVisible)
-    {
-        var clockPercent = PercentOf(clockTop, areaHeight, clockHeight);
-        if (Math.Abs(clockPercent - settings.ClockPositionPercent) > 0.05)
-            settings.ClockPositionPercent = clockPercent;
-
-        if (!volumeVisible) return;
-        var volumePercent = PercentOf(volumeTop, areaHeight, volumeHeight);
-        if (Math.Abs(volumePercent - settings.VolumePositionPercent) > 0.05)
-            settings.VolumePositionPercent = volumePercent;
-    }
-
     /// <summary>按「中心落在区域高度的百分之几」算出该块的上边距（未钳制，钳制在各调用处按优先级做）。</summary>
     private static double TopFor(double percent, double areaHeight, double height)
         => percent / 100.0 * areaHeight - height / 2.0;
-
-    /// <summary>上边距换算回「中心落在区域高度的百分之几」，与 <see cref="TopFor"/> 互逆。</summary>
-    private static double PercentOf(double top, double areaHeight, double height)
-        => Math.Clamp((top + height / 2.0) / areaHeight * 100, 0, 100);
 
     /// <summary>摆好一块的上边距。只在真的变了才写：写过边距还会再跑一轮 SizeChanged，不比较会来回抖。</summary>
     private static void SetTop(Control block, double top)
@@ -602,7 +747,8 @@ public partial class ClockSurface : UserControl
     /// <summary>预警详情弹幕：文字超宽时自动横向滚动（从右向左），不用手动拖动滚动条。</summary>
     private void DetailScroll_SizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        if (sender is ScrollViewer sv && sv.IsVisible)
+        // 组件化后宿主隐藏时内层 IsVisible 仍是 true，所以要按「实际有没有显示」来判断
+        if (sender is ScrollViewer sv && sv.IsEffectivelyVisible)
             StartMarquee(sv, once: false);
     }
 
@@ -726,28 +872,19 @@ public partial class ClockSurface : UserControl
         var vm = DataContext as FullScreenClockViewModel;
         var settings = Plugin.Settings;
 
-        // 有烘好的模糊底图（磨砂 / 真•◯◯玻璃档）→ 把整面墙实时糊掉，大屏内容还看得见轮廓，
-        // 关于窗口浮在上面。就糊这一阵子（弹出期间），关掉立刻撤掉 Effect，不留常驻开销。
-        var frosted = Backdrop.HasBlurredBackdrop;
-        if (frosted)
-        {
-            var radius = settings?.GlassBlurRadius ?? 24;
-            Effect = new BlurEffect { Radius = Math.Clamp(radius, 4, 48) };
-        }
+        // 玻璃子系统已删除：这里不再对整面墙做实时模糊，关于窗口直接浮在背景上。
 
         // 窗口底色跟**背景图明暗**走：暗图黑底白字、亮图白底黑字（不是跟界面主题走——
         // 暗色界面压在一张很亮的壁上时，深色方片会突兀得像贴上去的）。
-        // 没有背景图时才退回界面主题。
+        // 只有「自定义图片」这类能算出明暗的背景才这么判；壁纸/纯色仍跟随界面主题。
         var light = vm?.Chrome.IsLight ?? false;
-        if (settings?.BackgroundEnabled == true && ClockThemeApplier.BackgroundIsDark(settings) is { } imageDark)
+        if (settings is not null
+            && (BackgroundKind)settings.BackgroundKind == BackgroundKind.CustomImage
+            && ClockThemeApplier.BackgroundIsDark(settings) is { } imageDark)
             light = !imageDark;
 
-        _aboutWindow = new AboutPopupWindow(light, frosted);
-        _aboutWindow.Closed += (_, _) =>
-        {
-            Effect = null;
-            _aboutWindow = null;
-        };
+        _aboutWindow = new AboutPopupWindow(light);
+        _aboutWindow.Closed += (_, _) => _aboutWindow = null;
         _aboutWindow.Show(owner); // 以全屏窗口为 Owner（置顶、随主窗口关闭）
     }
 

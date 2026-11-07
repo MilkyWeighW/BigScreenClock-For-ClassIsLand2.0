@@ -35,6 +35,12 @@ public class DecibelMeterService : INotifyPropertyChanged, IDisposable
     /// 不受设备自身 RecordingStopped 影响。系统睡眠唤醒后设备失效时，看门狗据此才能重启
     /// （此前看门狗只看 _isMonitoring，而设备失效会把它置 false，于是永远不再重启）。</summary>
     private bool _shouldMonitor;
+    /// <summary>看门狗重启互斥标记（0=空闲，1=已排队/正在重启）。定时器周期重叠时用它
+    /// 拦住重复 Post，避免同一轮数据中断被排出一串「停+启」把设备反复重建。</summary>
+    private int _restarting;
+    /// <summary>监控代次：每次 <see cref="StopMonitoring"/> 自增。已经排进 UI 队列的看门狗重启
+    /// 一旦发现代次变了就放弃执行，保证「用户关掉监控之后，绝不因为一个迟到的排队动作把麦克风又打开」。</summary>
+    private int _monitorGeneration;
     private double _currentRms;
     private int _displayLevel; // 0-100 正数显示
     private string _noiseLevelText = "等待检测...";
@@ -197,12 +203,41 @@ public class DecibelMeterService : INotifyPropertyChanged, IDisposable
             if (!_shouldMonitor) return;
             if (_isMonitoring && (DateTime.Now - _lastDataReceived).TotalSeconds <= 5) return;
 
+            // 已经有一轮重启在排队/正在跑：不重复排队。否则每 5 秒的周期会在设备迟迟
+            // 起不来时叠出一串「停+启」，既白费设备句柄又可能和新设备互相踩。
+            if (Interlocked.Exchange(ref _restarting, 1) != 0) return;
+
+            // 记下当前代次：排队期间只要 StopMonitoring 过，代次就对不上，排队动作直接作废。
+            var generation = Volatile.Read(ref _monitorGeneration);
+
             System.Diagnostics.Debug.WriteLine("[DecibelMeter] 看门狗检测到数据中断，重启音频");
-            Dispatcher.UIThread.Post(() =>
+            try
             {
-                StopMonitoringInternal();
-                StartMonitoringInternal();
-            });
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        // Post 之后、执行之前用户可能已经关掉监控：关了就绝不复活。
+                        if (!_shouldMonitor || generation != Volatile.Read(ref _monitorGeneration)) return;
+
+                        StopMonitoringInternal();
+
+                        // 停旧设备期间又关掉监控（或又重开了一轮）：不再拉起，避免留下没人管的监听。
+                        if (!_shouldMonitor || generation != Volatile.Read(ref _monitorGeneration)) return;
+
+                        StartMonitoringInternal();
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref _restarting, 0);
+                    }
+                });
+            }
+            catch
+            {
+                // 派发失败（如 Dispatcher 已关闭）也要把名额还回去，否则后续再也排不进重启
+                Interlocked.Exchange(ref _restarting, 0);
+            }
         };
         _watchdogTimer.Start();
     }
@@ -216,6 +251,8 @@ public class DecibelMeterService : INotifyPropertyChanged, IDisposable
 
     public void StopMonitoring()
     {
+        // 先抬代次再置意图：已经排进 UI 队列的看门狗重启会看到代次不符而放弃，不会把监听重新拉起来
+        Interlocked.Increment(ref _monitorGeneration);
         _shouldMonitor = false;
         StopWatchdog();
         StopMonitoringInternal();

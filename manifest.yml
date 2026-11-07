@@ -7,7 +7,7 @@ repoOwner: Human-air
 repoName: BigScreenClock-For-ClassIsLand2.0
 assetsRoot: main
 version: 1.2.0.0
-apiVersion: 2.0.0.0
+apiVersion: 2.1.0.0
 author: sokumei
 supportedOSPlatforms:
 - Windows

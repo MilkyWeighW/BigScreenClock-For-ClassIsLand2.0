@@ -102,7 +102,10 @@ public class AutoTriggerService : BackgroundService
         if (currentState == TimeState.OnClass)
         {
             string? subjectName = currentSubject?.Name;
-            if (_settings.IsTargetCourse(subjectName))
+            // 同名但绑定了不同科目的课，只靠名字区分不开：优先按科目 Id 匹配，
+            // 拿不到 Id（老版本/课表未加载）时 IsTargetCourse 内部会退回名字匹配。
+            var subjectId = CiCourseIdentity.TryGetCurrentClassSubjectId(_lessonsService);
+            if (_settings.IsTargetCourse(subjectName, subjectId))
             {
                 // 进入目标课程 → 显示时钟（Show 幂等，已显示时无操作）
                 _viewModel.Show();

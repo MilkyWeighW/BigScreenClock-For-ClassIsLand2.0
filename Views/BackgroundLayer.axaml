@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="EveningSelfStudyClock.Views.BackgroundLayer"
+             IsHitTestVisible="False">
+
+    <!-- 背景层的全部内容都在这里：一条纯色底、旧画面、目标画面、明暗遮罩。
+         大屏全屏时铺满整窗（圆角 0），设置页预览时是一张圆角卡片（圆角由 BackdropCornerRadius 传进来）。
+         做成一整层而不是塞进窗口背景，是为了让「旧画面淡出 / 新画面淡入」这套过渡能自己演。 -->
+    <Border x:Name="ClipBorder" ClipToBounds="True" CornerRadius="0">
+        <Grid>
+            <!-- 纯色背景类型用（其它类型时透明、不显示） -->
+            <Border x:Name="SolidFill" Opacity="0"/>
+
+            <!-- 旧画面：开屏时是「当前屏幕截图压暗」，运行中换背景时是上一张背景 -->
+            <Image x:Name="PriorImage" Stretch="UniformToFill" Opacity="0"/>
+
+            <!-- 目标画面：壁纸 / 自定义图片。壁纸的景深放大用代码里创建的 ScaleTransform 做
+                 （XAML 里 RenderTransform 内的命名元素不生成字段，故不在 XAML 里挂）。 -->
+            <Image x:Name="TargetImage" Stretch="UniformToFill" Opacity="0"
+                   RenderTransformOrigin="0.5,0.5"/>
+
+            <!-- 明暗遮罩：BackgroundDim 负值压暗、正值提亮 -->
+            <Border x:Name="Veil"/>
+        </Grid>
+    </Border>
+</UserControl>

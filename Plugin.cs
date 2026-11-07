@@ -45,6 +45,19 @@ public class Plugin : PluginBase
         // 下次启动玻璃就一直是收起的。这里强制归零。
         Settings.AdjustingLayout = false;
 
+        // 组件布局按清单补齐：老配置里没有「组件」这一节，升级上来后设置页与组件壳都能直接读到默认值
+        Settings.EnsureComponentLayouts();
+
+        // 旧版的 ShowXxx 显示开关一次性搬进组件启用开关（只搬一次，之后以组件设置里的开关为准）
+        Settings.MigrateLegacyComponentVisibility();
+
+        // 旧配置里「背景」只有「背景图」一个概念：选过图的沿用自定义图片，其余人默认那项就是壁纸
+        if (File.Exists(settingsPath) && !string.IsNullOrWhiteSpace(Settings.BackgroundImageFile))
+            Settings.BackgroundKind = (int)BackgroundKind.CustomImage;
+
+        // 模糊壁纸磁盘缓存：每次启动顺手清一次，只留最近几张（换壁纸后旧缓存没人再引用）
+        WallpaperCacheService.CleanupCache();
+
         // 已经有配置文件 = 老版本升级上来：把原有那套颜色原样留在黑暗主题下，
         // 别让「跟随 ClassIsland」在首次启动时就把外观换成另一套（新装用户没有这个问题，默认跟随）
         if (File.Exists(settingsPath))
@@ -70,7 +83,6 @@ public class Plugin : PluginBase
 
         services.AddHostedService<ServiceProviderCapture>();
         services.AddHostedService<AutoTriggerService>();
-        services.AddHostedService<BackdropPreloadService>();
         services.AddHostedService<TrayMenuService>();
 
         services.AddSettingsPage<EveningSelfStudyClock.Settings.SettingsPage>();

@@ -1,681 +1,627 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls1="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core"
+             xmlns:controls2="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
              xmlns:cp="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.ColorPicker"
-             xmlns:ci="clr-namespace:ClassIsland.Core.MarkupExtensions;assembly=ClassIsland.Core"
-             xmlns:cis="clr-namespace:ClassIsland.Core;assembly=ClassIsland.Core"
              xmlns:views="clr-namespace:EveningSelfStudyClock.Views"
              x:Class="EveningSelfStudyClock.Settings.SettingsPage">
-    <UserControl.Styles>
-        <!-- 矢量图标：用 CI 自带的 Lucide 图标字体，{ci:LI 图标名} 取字形 -->
-        <Style Selector="TextBlock.icon">
-            <Setter Property="FontFamily" Value="{x:Static cis:AppBase.LucideIconsFontFamily}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-    </UserControl.Styles>
-    <Grid ColumnDefinitions="*,360" Margin="12">
 
-        <!-- ===== 左栏：设置（可滚动） =====
-             每个区块是一张卡片，用的是 CI 设置页里 SettingsExpander 那套：
-             卡片底 CardBackgroundFillColorDefaultBrush、1px 边框 CardStrokeColorDefaultBrush、
-             圆角 ControlCornerRadius(4)；文字颜色同样绑 FluentAvalonia 主题键，随 CI 主题自动切换。
-             卡片跟着窗口一起变宽，铺满整个设置区域（本页标了 [FullWidthPage]，
-             CI 的页面标题也就固定靠左，左距 12 与这里的 12 对齐）。 -->
-        <ScrollViewer Grid.Column="0" Padding="0,0,12,0">
-            <StackPanel Spacing="12" Margin="0,8,0,8">
+    <!-- 页面骨架：顶部 TabControl 五页签（组件 / 显示内容 / 音量与记录 / 外观 / 运行），
+         每个页签内是 ScrollViewer + settings-container 堆叠，图标标题 + SettingsExpander 设置行 + Separator 分隔；
+         右栏是常驻的大屏实时预览，不随左侧页签滚动，且不再显示在页面的 ScrollViewer 里。
+         两栏都以本页（SettingsPage）为 DataContext。 -->
+    <Grid ColumnDefinitions="*,Auto">
 
-                <!-- 功能开关 -->
-                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="4" Padding="14,12">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Classes="icon" Text="{ci:LI Settings}" FontSize="17"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="显示开关" FontSize="17" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <CheckBox IsChecked="{Binding ShowDecibelMeter}" FontSize="14">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Classes="icon" Text="{ci:LI Mic}" FontSize="13"/>
-                            <TextBlock Text="教室音量" FontSize="14" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </CheckBox>
-                    <CheckBox IsChecked="{Binding ShowCourseInfo}" FontSize="14">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Classes="icon" Text="{ci:LI BookOpen}" FontSize="13"/>
-                            <TextBlock Text="课程信息" FontSize="14" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </CheckBox>
-                    <!-- 课程信息子项：勾选「课程信息」后出现 -->
-                    <CheckBox Margin="20,2,0,0" FontSize="13"
-                              IsChecked="{Binding ShowBellTime}"
-                              IsVisible="{Binding ShowCourseInfo}">
-                        <TextBlock Text="显示精确打铃时间" FontSize="13" VerticalAlignment="Center"/>
-                    </CheckBox>
-                    <CheckBox IsChecked="{Binding ShowNoisyCounter}" FontSize="14">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Classes="icon" Text="{ci:LI ChartColumn}" FontSize="13"/>
-                            <TextBlock Text="吵闹计数" FontSize="14" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </CheckBox>
-                    <CheckBox IsChecked="{Binding ShowReminderPanel}" FontSize="14">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Classes="icon" Text="{ci:LI Bell}" FontSize="13"/>
-                            <TextBlock Text="提醒显示" FontSize="14" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </CheckBox>
-                    <!-- 提醒子项：勾选「提醒显示」后出现 -->
-                    <StackPanel Spacing="6" Margin="20,2,0,0"
-                                IsVisible="{Binding ShowReminderPanel}">
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowSpacing="2"
-                              RowDefinitions="Auto,Auto,Auto,Auto">
-                            <CheckBox Grid.Row="0" Grid.Column="0" IsChecked="{Binding ShowWeatherReminder}"
-                                      FontSize="14">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Classes="icon" Text="{ci:LI Sun}" FontSize="13"/>
-                                    <TextBlock Text="天气" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </CheckBox>
-                            <CheckBox Grid.Row="0" Grid.Column="1" IsChecked="{Binding ShowAlertsReminder}"
-                                      FontSize="14">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Classes="icon" Text="{ci:LI TriangleAlert}" FontSize="13"/>
-                                    <TextBlock Text="预警" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </CheckBox>
-                            <CheckBox Grid.Row="1" Grid.Column="0" IsChecked="{Binding ShowCountdownReminder}"
-                                      FontSize="14">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Classes="icon" Text="{ci:LI Timer}" FontSize="13"/>
-                                    <TextBlock Text="倒计时" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </CheckBox>
-                            <CheckBox Grid.Row="1" Grid.Column="1" IsChecked="{Binding ShowTextReminder}"
-                                      FontSize="14">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Classes="icon" Text="{ci:LI MessageSquare}" FontSize="13"/>
-                                    <TextBlock Text="文本" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </CheckBox>
-                            <CheckBox Grid.Row="2" Grid.Column="0" IsChecked="{Binding ShowRainReminder}"
-                                      FontSize="14">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Classes="icon" Text="{ci:LI CloudRain}" FontSize="13"/>
-                                    <TextBlock Text="降雨提醒" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </CheckBox>
-                            <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding ShowEmojiSubtitles}"
-                                      FontSize="14">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Classes="icon" Text="{ci:LI Smile}" FontSize="13"/>
-                                    <TextBlock Text="颜文字" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </CheckBox>
-                            <CheckBox Grid.Row="3" Grid.Column="0" IsChecked="{Binding ShowCameraReminder}"
-                                      FontSize="14">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <TextBlock Classes="icon" Text="{ci:LI Webcam}" FontSize="13"/>
-                                    <TextBlock Text="摄像头占用" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </CheckBox>
-                            <StackPanel Grid.Row="3" Grid.Column="1" Spacing="4">
-                                <CheckBox IsChecked="{Binding ShowEarthquakeReminder}"
-                                          IsEnabled="{Binding IsEarthquakePluginAvailable}"
-                                          FontSize="14"
-                                          ToolTip.Tip="读「地震预警」插件的实时状态，在屏幕上方弹出横波倒计时与震中震级">
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                        <TextBlock Classes="icon" Text="{ci:LI Activity}" FontSize="13"/>
-                                        <TextBlock Text="地震预警" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </CheckBox>
-                                <!-- 没装「地震预警」插件时：开关置灰，下面说明原因 -->
-                                <TextBlock FontSize="12" TextWrapping="Wrap"
-                                           IsVisible="{Binding ShowEarthquakePluginHint}"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                           Text="启用地震预警需先安装 ClassIsland 插件「地震预警」"/>
-                            </StackPanel>
-                        </Grid>
+        <!-- ============ 左：五个页签 ============ -->
+        <TabControl Classes="compact" Padding="0" Margin="0 8 0 0">
+            <TabItem>
+                <TabItem.Header>
+                    <controls1:IconText Glyph="&#xE075;" Text="组件"/>
+                </TabItem.Header>
+                <Grid RowDefinitions="*,Auto">
+                    <ScrollViewer Grid.Row="0">
+                        <StackPanel Classes="settings-container animated-intro">
+                            <!-- ============ 组件 ============ -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <ListBox Grid.Column="0" x:Name="ComponentBar" ItemsSource="{Binding EnabledItems}"
+                                         SelectedItem="{Binding SelectedComponent, Mode=TwoWay}"
+                                         Background="Transparent" BorderThickness="0" Padding="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <ListBox.Styles>
+                                        <Style Selector="ListBoxItem">
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0"/>
+                                            <Setter Property="MinWidth" Value="0"/>
+                                            <Setter Property="CornerRadius" Value="6"/>
+                                            <!-- WrapPanel 多行时按内容宽度排，别让每个 chip 撑满一行 -->
+                                            <Setter Property="HorizontalAlignment" Value="Left"/>
+                                        </Style>
+                                    </ListBox.Styles>
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Classes="component-chip" CornerRadius="6" Padding="10,6"
+                                                    Margin="0 0 6 6"
+                                                    Background="Transparent" Cursor="Hand">
+                                                <controls1:IconText Glyph="{Binding Glyph}" Text="{Binding Name}"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
 
-                        <!-- 摄像头占用子项：勾选「摄像头占用」后出现 -->
-                        <StackPanel Spacing="6" Margin="0,4,0,0" IsVisible="{Binding ShowCameraReminder}">
-                            <TextBlock Text="勾选要提醒的摄像头，不勾选的不提醒。" FontSize="12"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
-                            <ItemsControl ItemsSource="{Binding CameraDevices}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsSelected}" FontSize="14"
-                                                  Content="{Binding Name}"
-                                                  ToolTip.Tip="{Binding PathTip}"/>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Content="刷新设备列表" Click="RefreshCameras_Click"
-                                    FontSize="13" HorizontalAlignment="Left"/>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0" Text="提醒字号" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <Slider x:Name="CameraAlertFontSlider" Grid.Column="1"
-                                        Value="{Binding CameraAlertFontSize}" Minimum="15" Maximum="19"
-                                        TickFrequency="1" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding CameraAlertFontSizeText}" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40"
-                                           TextAlignment="Center" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="＋ 添加组件" Margin="8 0 0 0" Padding="12,6"
+                                        CornerRadius="6" Cursor="Hand" VerticalAlignment="Top">
+                                    <Button.Flyout>
+                                        <Flyout Placement="BottomEdgeAlignedLeft">
+                                            <StackPanel MinWidth="200" Spacing="2">
+                                                <ItemsControl ItemsSource="{Binding DisabledItems}"
+                                                              IsVisible="{Binding HasDisabledItems}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button HorizontalAlignment="Stretch"
+                                                                    HorizontalContentAlignment="Left"
+                                                                    Padding="10,6" Background="Transparent"
+                                                                    Cursor="Hand" Click="AddComponent_Click">
+                                                                <controls1:IconText Glyph="{Binding Glyph}"
+                                                                                    Text="{Binding Name}"/>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="所有组件都已经显示在大屏上了。" FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           IsVisible="{Binding !HasDisabledItems}"/>
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
                             </Grid>
-                            <TextBlock Text="{Binding CameraHint}" FontSize="11" TextWrapping="Wrap"
-                                       IsVisible="{Binding HasCameraHint}"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
-                        </StackPanel>
-                    </StackPanel>
-                    <!-- 托盘菜单入口开关 -->
-                    <CheckBox IsChecked="{Binding ShowTrayMenuEntry}" FontSize="14">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Classes="icon" Text="{ci:LI SquareMenu}" FontSize="13"/>
-                            <TextBlock Text="托盘菜单显示「进入大屏时钟」" FontSize="14" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </CheckBox>
-                    <TextBlock Text="关闭后 CI 托盘右键菜单里不再出现该入口（下次打开菜单即生效）。" FontSize="11" Margin="20,0,0,0"
-                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap"/>
-                </StackPanel>
-                </Border>
 
-                <!-- 目标课程 -->
-                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="4" Padding="14,12">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Classes="icon" Text="{ci:LI ListChecks}" FontSize="17"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="触发课程" FontSize="17" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <TextBlock Text="选择要触发的课程，可添加多个。" FontSize="12"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                            <TextBlock Text="还没有启用的组件。点右上角「＋ 添加组件」加回来。" FontSize="13"
+                                       Margin="0 8 0 0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       IsVisible="{Binding !HasEnabledItems}"/>
+
+                            <controls2:SettingsExpander Header="{Binding SelectedComponent.Name}"
+                                                        Description="{Binding SelectedComponent.Description}"
+                                                        IconSource="{Binding SelectedComponent.IconSource}"
+                                                        IsExpanded="True" Margin="0 12 0 0"
+                                                        IsVisible="{Binding HasSelectedComponent}">
+                                <controls2:SettingsExpander.Footer>
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <TextBlock Text="启用" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <ToggleSwitch IsChecked="{Binding SelectedComponent.Layout.Enabled, Mode=TwoWay}"/>
+                                        <Button Content="恢复默认" FontSize="13" Padding="12,5" CornerRadius="6"
+                                                Cursor="Hand" Click="ResetComponent_Click"/>
+                                    </StackPanel>
+                                </controls2:SettingsExpander.Footer>
+
+                                <controls2:SettingsExpanderItem Content="大小">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider Width="180" Minimum="0.5" Maximum="2" TickFrequency="0.05"
+                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.Layout.Scale, Mode=TwoWay}"/>
+                                            <TextBlock Text="{Binding SelectedComponent.Layout.Scale, StringFormat='{}{0:P0}'}"
+                                                       Width="60" TextAlignment="Center"
+                                                       VerticalAlignment="Center" FontSize="12"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+
+                                <controls2:SettingsExpanderItem Content="水平位置">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider Width="180" Minimum="-50" Maximum="50" TickFrequency="5"
+                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.Layout.OffsetX, Mode=TwoWay}"/>
+                                            <TextBlock Text="{Binding SelectedComponent.Layout.OffsetX, StringFormat='{}{0:F0}%'}"
+                                                       Width="60" TextAlignment="Center"
+                                                       VerticalAlignment="Center" FontSize="12"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+
+                                <controls2:SettingsExpanderItem Content="垂直位置">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider Width="180" Minimum="-50" Maximum="50" TickFrequency="5"
+                                                    IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                    Value="{Binding SelectedComponent.Layout.OffsetY, Mode=TwoWay}"/>
+                                            <TextBlock Text="{Binding SelectedComponent.Layout.OffsetY, StringFormat='{}{0:F0}%'}"
+                                                       Width="60" TextAlignment="Center"
+                                                       VerticalAlignment="Center" FontSize="12"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+
+                                <controls2:SettingsExpanderItem Content="顺序" Description="同区先后">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Button Content="← 前移" FontSize="13" Padding="10,5" CornerRadius="6"
+                                                    Cursor="Hand" Click="MoveEarlier_Click"/>
+                                            <Button Content="→ 后移" FontSize="13" Padding="10,5" CornerRadius="6"
+                                                    Cursor="Hand" Click="MoveLater_Click"/>
+                                            <TextBlock Text="{Binding SelectedOrderText}" FontSize="12" MinWidth="96"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="时钟字号"
+                                    IsVisible="{Binding IsClockSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider x:Name="ClockFontSlider" Width="180"
+                                                    Value="{Binding ClockFontSize}" Minimum="60" Maximum="400"
+                                                    TickFrequency="20" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ClockFontSizeText}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40"
+                                                       TextAlignment="Center" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="时钟字体颜色"
+                                    IsVisible="{Binding IsClockSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding FontColorHex}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <cp:ColorPicker Color="{Binding FontColorValue}"
+                                                            IsAccentColorsVisible="False" Width="90" Height="28">
+                                                <cp:ColorPicker.Content>
+                                                    <Border Background="{Binding FontColorBrush}" CornerRadius="3"
+                                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"/>
+                                                </cp:ColorPicker.Content>
+                                            </cp:ColorPicker>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="音量条文字颜色"
+                                    IsVisible="{Binding IsVolumeSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding NoiseTitleColorHex}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <cp:ColorPicker Color="{Binding NoiseTitleColorValue}"
+                                                            IsAccentColorsVisible="False" Width="90" Height="28">
+                                                <cp:ColorPicker.Content>
+                                                    <Border Background="{Binding NoiseTitleColorBrush}" CornerRadius="3"
+                                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"/>
+                                                </cp:ColorPicker.Content>
+                                            </cp:ColorPicker>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="显示精确打铃时间"
+                                                                Description="按课表+偏移量算出本节课的下课时刻。"
+                                                                IconSource="{controls1:FluentIconSource &#xEF25;}"
+                                    IsVisible="{Binding IsCourseSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <ToggleSwitch IsChecked="{Binding ShowBellTime}"/>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="课程信息字号"
+                                    IsVisible="{Binding IsCourseSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider x:Name="CourseInfoFontSlider" Width="180"
+                                                    Value="{Binding CourseInfoFontSize}" Minimum="14" Maximum="72"
+                                                    TickFrequency="2" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding CourseInfoFontSizeText}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40"
+                                                       TextAlignment="Center" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="课程信息颜色"
+                                    IsVisible="{Binding IsCourseSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding CourseInfoColorHex}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <cp:ColorPicker Color="{Binding CourseInfoColorValue}"
+                                                            IsAccentColorsVisible="False" Width="90" Height="28">
+                                                <cp:ColorPicker.Content>
+                                                    <Border Background="{Binding CourseInfoColorBrush}" CornerRadius="3"
+                                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"/>
+                                                </cp:ColorPicker.Content>
+                                            </cp:ColorPicker>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="计数字号"
+                                    IsVisible="{Binding IsCounterSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider x:Name="CountFontSlider" Width="180"
+                                                    Value="{Binding CountFontSize}" Minimum="12" Maximum="72"
+                                                    TickFrequency="2" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding CountFontSizeText}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40"
+                                                       TextAlignment="Center" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="进度条颜色"
+                                    IsVisible="{Binding IsProgressSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding ProgressColorHex}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <cp:ColorPicker Color="{Binding ProgressColorValue}"
+                                                            IsAccentColorsVisible="False" Width="90" Height="28">
+                                                <cp:ColorPicker.Content>
+                                                    <Border Background="{Binding ProgressColorBrush}" CornerRadius="3"
+                                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"/>
+                                                </cp:ColorPicker.Content>
+                                            </cp:ColorPicker>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="降水提醒颜色"
+                                    IsVisible="{Binding IsRainSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding RainColorHex}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <cp:ColorPicker Color="{Binding RainColorValue}"
+                                                            IsAccentColorsVisible="False" Width="90" Height="28">
+                                                <cp:ColorPicker.Content>
+                                                    <Border Background="{Binding RainColorBrush}" CornerRadius="3"
+                                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"/>
+                                                </cp:ColorPicker.Content>
+                                            </cp:ColorPicker>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="显示颜文字"
+                                                                Description="在提醒行里轮播颜文字字幕。"
+                                                                IconSource="{controls1:FluentIconSource &#xE7DB;}"
+                                    IsVisible="{Binding IsReminderSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <ToggleSwitch IsChecked="{Binding ShowEmojiSubtitles}"/>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                            <controls2:SettingsExpanderItem Content="摄像头占用提醒"
+                                                            Description="占用摄像头时在大屏提示"
+                                                            IsVisible="{Binding IsReminderSelected}">
+                                <controls2:SettingsExpanderItem.Footer>
+                                    <ToggleSwitch IsChecked="{Binding ShowCameraReminder}"/>
+                                </controls2:SettingsExpanderItem.Footer>
+                            </controls2:SettingsExpanderItem>
+
+                                <controls2:SettingsExpanderItem Content="要提醒的摄像头"
+                                                                Description="勾选要提醒的摄像头，不勾选的不提醒。"
+                                                                IsEnabled="{Binding ShowCameraReminder}"
+                                    IsVisible="{Binding IsReminderSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Spacing="6" Width="320">
+                                            <ItemsControl ItemsSource="{Binding CameraDevices}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox IsChecked="{Binding IsSelected}" FontSize="13"
+                                                                  Content="{Binding Name}"
+                                                                  ToolTip.Tip="{Binding PathTip}"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Button Content="刷新设备列表" Click="RefreshCameras_Click" FontSize="12"
+                                                        Padding="10,4" CornerRadius="6"/>
+                                                <TextBlock Text="{Binding CameraHint}" FontSize="11" TextWrapping="Wrap"
+                                                           IsVisible="{Binding HasCameraHint}" MaxWidth="200"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                                <controls2:SettingsExpanderItem Content="提醒字号"
+                                                                Description="摄像头提示文字的大小。"
+                                                                IsEnabled="{Binding ShowCameraReminder}"
+                                    IsVisible="{Binding IsReminderSelected}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Slider x:Name="CameraAlertFontSlider" Width="180"
+                                                    Value="{Binding CameraAlertFontSize}" Minimum="15" Maximum="19"
+                                                    TickFrequency="1" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding CameraAlertFontSizeText}" FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40"
+                                                       TextAlignment="Center" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
+                            <controls2:SettingsExpanderItem Content="地震预警"
+                                                            IsVisible="{Binding IsEarthquakeSelected}">
+                                <controls2:SettingsExpanderItem.Footer>
+                                    <TextBlock Text="需安装并启用「地震预警」插件" FontSize="12"
+                                               TextWrapping="Wrap" MaxWidth="240"
+                                               IsVisible="{Binding ShowEarthquakePluginHint}"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                </controls2:SettingsExpanderItem.Footer>
+                            </controls2:SettingsExpanderItem>
+
+                            </controls2:SettingsExpander>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Border Grid.Row="1" Padding="12,8" BorderThickness="0 1 0 0"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="大小：整体缩放倍率，1 = 原始大小。"
+                                       FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock Text="水平/垂直位置：相对默认排布的偏移，单位是屏幕宽/高的百分比，0 = 默认位置。"
+                                       FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                            <TextBlock Text="关掉的组件不占位，可用「＋ 添加组件」加回；用箭头调整同区顺序。"
+                                       FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <controls1:IconText Glyph="&#xE813;" Text="显示内容"/>
+                </TabItem.Header>
+                <ScrollViewer>
+                    <StackPanel Classes="settings-container animated-intro">
+                        <!-- ============ 显示内容 ============ -->
+                        <controls1:IconText Glyph="&#xF483;" Text="显示内容" Margin="0 4 0 4"/>
+
+                    <controls2:SettingsExpander Header="托盘菜单入口"
+                                                Description="托盘右键不再出现入口，下次开菜单生效"
+                                                IconSource="{controls1:FluentIconSource &#xE075;}">
+                        <controls2:SettingsExpander.Footer>
+                            <ToggleSwitch IsChecked="{Binding ShowTrayMenuEntry}"/>
+                        </controls2:SettingsExpander.Footer>
+                    </controls2:SettingsExpander>
+
+                    <!-- ============ 触发课程 ============ -->
+                    <Separator Margin="0 12 0 4"/>
+                    <controls1:IconText Glyph="&#xE304;" Text="触发课程" Margin="0 4 0 4"/>
+                    <TextBlock Text="只在这些课程时自动进大屏，可加多个"
+                               FontSize="12" Margin="0 0 0 4" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+
                     <ItemsControl ItemsSource="{Binding SelectedCourses}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,2" ColumnSpacing="6">
-                                    <ComboBox ItemsSource="{Binding AllCourses}"
-                                              SelectedItem="{Binding SelectedName}"
-                                              FontSize="13" Padding="6,3"/>
-                                    <Button Grid.Column="1" FontSize="13"
-                                            Foreground="#d9493f" Background="Transparent"
-                                            BorderThickness="0" Cursor="Hand" Padding="6,3"
-                                            Command="{Binding RemoveCommand}">
-                                        <TextBlock Classes="icon" Text="{ci:LI X}" FontSize="13"/>
-                                    </Button>
-                                </Grid>
+                                <controls2:SettingsExpanderItem Content="{Binding SelectedName}">
+                                    <controls2:SettingsExpanderItem.Footer>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <ComboBox ItemsSource="{Binding AllCourses}"
+                                                      SelectedItem="{Binding SelectedName}"
+                                                      FontSize="13" MinWidth="180" Padding="6,3"
+                                                      VerticalAlignment="Center"/>
+                                            <Button FontSize="13" Foreground="#d9493f" Background="Transparent"
+                                                    BorderThickness="0" Cursor="Hand" Padding="6,4"
+                                                    Command="{Binding RemoveCommand}"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="移除" FontSize="12"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </controls2:SettingsExpanderItem.Footer>
+                                </controls2:SettingsExpanderItem>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <Button FontSize="13"
-                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+
+                    <Button HorizontalAlignment="Left" Margin="0 4 0 0"
+                            FontSize="13" Cursor="Hand" Padding="12,5" CornerRadius="6"
                             Background="{DynamicResource ControlFillColorSecondaryBrush}"
                             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                            CornerRadius="6" Padding="8,5"
-                            Cursor="Hand" Click="AddCourse_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Classes="icon" Text="{ci:LI Plus}" FontSize="12"/>
-                            <TextBlock Text="添加课程" FontSize="13" VerticalAlignment="Center"/>
-                        </StackPanel>
+                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                            Click="AddCourse_Click">
+                        <TextBlock Text="＋ 添加课程" FontSize="13" VerticalAlignment="Center"/>
                     </Button>
-                </StackPanel>
-                </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <controls1:IconText Glyph="&#xEB80;" Text="音量与记录"/>
+                </TabItem.Header>
+                <ScrollViewer>
+                    <StackPanel Classes="settings-container animated-intro">
+                    <!-- ============ 音量检测 ============ -->
+                    <Separator Margin="0 12 0 4"/>
+                    <controls1:IconText Glyph="&#xEB80;" Text="音量检测" Margin="0 4 0 4"/>
 
-                <!-- 运行 -->
-                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="4" Padding="14,12">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Classes="icon" Text="{ci:LI Timer}" FontSize="17"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="运行" FontSize="17" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <CheckBox IsChecked="{Binding PauseWhenMinimized}" FontSize="14">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Classes="icon" Text="{ci:LI Pause}" FontSize="13"/>
-                            <TextBlock Text="最小化超过设定时间后暂停" FontSize="14" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </CheckBox>
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"
-                          IsEnabled="{Binding PauseWhenMinimized}">
-                        <Slider Grid.Column="0" Value="{Binding MinimizePauseMinutes}"
-                                Minimum="1" Maximum="30" TickFrequency="1"
-                                VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="{Binding MinimizePauseMinutesText}"
-                                   FontSize="12" Width="52" TextAlignment="Center" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                    </Grid>
-                    <TextBlock Text="暂停后停止计时、音量检测、摄像头检测与防休眠；窗口不关，任务栏入口保留，点回即恢复。"
-                               FontSize="11" TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
-                </StackPanel>
-                </Border>
+                    <controls2:SettingsExpander Header="等级阈值"
+                                                Description="系统默认麦克风，RMS 阈值，超吵闹记「嘈杂」"
+                                                IconSource="{controls1:FluentIconSource &#xF00D;}">
+                        <controls2:SettingsExpanderItem Content="安静"
+                                                        Description="低于该值视为安静。"
+                                                        IconSource="{controls1:FluentIconSource &#xEF4F;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Minimum="-3" Maximum="0" TickFrequency="0.1"
+                                            Value="{Binding DecibelQuietThresholdIndex}" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding DecibelQuietThresholdText}" FontSize="12"
+                                             Padding="4" Width="70"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="良好">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Minimum="{Binding GoodThresholdSliderMin}" Maximum="0"
+                                            TickFrequency="0.1"
+                                            Value="{Binding DecibelGoodThresholdIndex}" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding DecibelGoodThresholdText}" FontSize="12"
+                                             Padding="4" Width="70"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="一般">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Minimum="{Binding NormalThresholdSliderMin}" Maximum="0"
+                                            TickFrequency="0.1"
+                                            Value="{Binding DecibelNormalThresholdIndex}" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding DecibelNormalThresholdText}" FontSize="12"
+                                             Padding="4" Width="70"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="吵闹">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Minimum="{Binding NoisyThresholdSliderMin}" Maximum="0"
+                                            TickFrequency="0.1"
+                                            Value="{Binding DecibelNoisyThresholdIndex}" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding DecibelNoisyThresholdText}" FontSize="12"
+                                             Padding="4" Width="70"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="采样间隔"
+                                                        Description="每次读数采集的音频时长（秒）"
+                                                        IconSource="{controls1:FluentIconSource &#xE161;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding SamplingIntervalSeconds}"
+                                            Minimum="0.1" Maximum="1.0" TickFrequency="0.1"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding SamplingIntervalSecondsText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="72"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                    </controls2:SettingsExpander>
 
-                <!-- 音量检测 -->
-                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="4" Padding="14,12">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Classes="icon" Text="{ci:LI Volume2}" FontSize="17"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="音量检测" FontSize="17" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <TextBlock Text="使用系统默认麦克风采集" FontSize="11"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                    <TextBlock Text="等级阈值 (RMS)（范围 0.001~1.000）" FontSize="12"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0"/>
-                    <Grid ColumnDefinitions="Auto,*,Auto" RowSpacing="6" ColumnSpacing="8"
-                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="安静" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="0" Grid.Column="1" Minimum="-3" Maximum="0" TickFrequency="0.1"
-                                Value="{Binding DecibelQuietThresholdIndex}" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding DecibelQuietThresholdText}" FontSize="12" Padding="4" Width="70"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="良好" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="1" Grid.Column="1" Minimum="{Binding GoodThresholdSliderMin}" Maximum="0" TickFrequency="0.1"
-                                Value="{Binding DecibelGoodThresholdIndex}" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding DecibelGoodThresholdText}" FontSize="12" Padding="4" Width="70"/>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="一般" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="2" Grid.Column="1" Minimum="{Binding NormalThresholdSliderMin}" Maximum="0" TickFrequency="0.1"
-                                Value="{Binding DecibelNormalThresholdIndex}" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding DecibelNormalThresholdText}" FontSize="12" Padding="4" Width="70"/>
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="吵闹" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="3" Grid.Column="1" Minimum="{Binding NoisyThresholdSliderMin}" Maximum="0" TickFrequency="0.1"
-                                Value="{Binding DecibelNoisyThresholdIndex}" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding DecibelNoisyThresholdText}" FontSize="12" Padding="4" Width="70"/>
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="采样间隔" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="4" Grid.Column="1" Value="{Binding SamplingIntervalSeconds}"
-                                Minimum="0.1" Maximum="1.0" TickFrequency="0.1" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding SamplingIntervalSecondsText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="72" TextAlignment="Center" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Row="5" Grid.ColumnSpan="3"
-                                   Text="超过吵闹 = 「嘈杂」；建议从小到大填写。采样间隔：麦克风每采集多长一段音频算一次读数（0.2 秒 = 每秒 5 次）"
-                                   FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                   TextWrapping="Wrap"/>
-                    </Grid>
-                </StackPanel>
-                </Border>
+                    <!-- ============ 记录参数 ============ -->
+                    <Separator Margin="0 12 0 4"/>
+                    <controls1:IconText Glyph="&#xE2FE;" Text="记录参数" Margin="0 4 0 4"/>
 
-                <!-- 记录参数 -->
-                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="4" Padding="14,12">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Classes="icon" Text="{ci:LI Calculator}" FontSize="17"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="记录参数" FontSize="17" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <Grid ColumnDefinitions="Auto,*,Auto" RowSpacing="6" ColumnSpacing="8"
-                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="起算底线" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="0" Grid.Column="1" Value="{Binding NoisySustainSeconds}"
-                                Minimum="0.5" Maximum="5" TickFrequency="0.1"/>
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding NoisySustainSecondsText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56" TextAlignment="Center" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="回落窗口" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="1" Grid.Column="1" Value="{Binding FallWindowSeconds}"
-                                Minimum="0" Maximum="15" TickFrequency="0.5"/>
-                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding FallWindowSecondsText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56" TextAlignment="Center" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="保护时长" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="2" Grid.Column="1" Value="{Binding SkipFirstMinutes}"
-                                Minimum="0" Maximum="10" TickFrequency="1"
-                                IsEnabled="{Binding SkipFirst3Min}"/>
-                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding SkipFirstMinutesText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56" TextAlignment="Center" VerticalAlignment="Center"/>
-                        <CheckBox Grid.Row="3" Grid.ColumnSpan="3" IsChecked="{Binding SkipFirst3Min}"
-                                  FontSize="13">
-                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                <TextBlock Classes="icon" Text="{ci:LI ShieldCheck}" FontSize="12"/>
-                                <TextBlock Text="上课初期保护（上课开始后前 N 分钟不计数）" FontSize="13" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </CheckBox>
-                        <CheckBox Grid.Row="4" Grid.ColumnSpan="3" IsChecked="{Binding EnableNoiseDebugLog}"
-                                  FontSize="13">
-                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                <TextBlock Classes="icon" Text="{ci:LI Wrench}" FontSize="12"/>
-                                <TextBlock Text="调试日志（输出 NoiseDebugLog.csv，用于收集真实数据校准阈值）" FontSize="13" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </CheckBox>
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="日志保留" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="5" Grid.Column="1" Value="{Binding LogRetentionDays}"
-                                Minimum="1" Maximum="5" TickFrequency="1"/>
-                        <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding LogRetentionDaysText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56" TextAlignment="Center" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="保留规则" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <StackPanel Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
-                            <RadioButton GroupName="LogKeepMode" Content="按记录时长" FontSize="13" VerticalAlignment="Center"
-                                         IsChecked="{Binding LogKeepByDuration}"/>
-                            <RadioButton GroupName="LogKeepMode" Content="按文件大小" FontSize="13" VerticalAlignment="Center"
-                                         IsChecked="{Binding LogKeepBySize}"/>
-                        </StackPanel>
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="{Binding LogKeepLabel}" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider Grid.Row="7" Grid.Column="1" Value="{Binding LogKeepValue}"
-                                Minimum="{Binding LogKeepMinimum}" Maximum="{Binding LogKeepMaximum}"
-                                TickFrequency="{Binding LogKeepTick}"/>
-                        <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding LogKeepValueText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="64" TextAlignment="Center" VerticalAlignment="Center"/>
-                        <Button Grid.Row="8" Grid.ColumnSpan="3" HorizontalAlignment="Left"
-                                FontSize="13" FontWeight="Normal" Cursor="Hand"
-                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                CornerRadius="6" Padding="8,5" Click="OpenLogFolder_Click">
-                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                <TextBlock Classes="icon" Text="{ci:LI FolderOpen}" FontSize="12"/>
-                                <TextBlock Text="打开调试数据文件目录" FontSize="13" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <TextBlock Grid.Row="9" Grid.ColumnSpan="3"
-                                   Text="测试完记得关闭本开关；记录时长/大小达不到上面设定的日志会在停止记录后自动删除，旧日志按天数清理"
-                                   FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap"/>
-                    </Grid>
-                </StackPanel>
-                </Border>
-
-                <!-- 外观 -->
-                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="4" Padding="14,12">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Classes="icon" Text="{ci:LI Palette}" FontSize="17"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="外观" FontSize="17" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="主题" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <ComboBox Grid.Column="1" SelectedIndex="{Binding ThemeModeIndex}" FontSize="13"
-                                  MinWidth="150" HorizontalAlignment="Left"
-                                  IsEnabled="{Binding IsAppearanceThemeEnabled}">
-                            <ComboBoxItem Content="跟随 ClassIsland"/>
-                            <ComboBoxItem Content="明亮"/>
-                            <ComboBoxItem Content="黑暗"/>
-                        </ComboBox>
-                    </Grid>
-                    <!-- 背景总开关：开了才启用下面这一整组（背景图 + 玻璃 + 背景主题），
-                         此时上面那项「主题」整项失效、由下面「背景主题」说了算 -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="自定义背景" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <CheckBox Grid.Column="1" FontSize="13"
-                                  IsChecked="{Binding BackgroundEnabled}" HorizontalAlignment="Left"/>
-                    </Grid>
-                    <!-- 开关关着时整组同时压暗：光靠 IsEnabled 只能让下拉、按钮变灰，
-                         几行说明文字因为各自写了 Foreground，不会跟着变，看着像还能调 -->
-                    <Expander HorizontalAlignment="Stretch"
-                              IsExpanded="{Binding IsBackgroundSectionExpanded, Mode=TwoWay}"
-                              IsEnabled="{Binding BackgroundEnabled}"
-                              Opacity="{Binding BackgroundSectionOpacity}">
-                        <Expander.Header>
-                            <TextBlock Text="背景设置" FontSize="13"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                        </Expander.Header>
-                        <StackPanel Spacing="8">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0" Text="背景主题" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <ComboBox Grid.Column="1" SelectedIndex="{Binding BackgroundThemeModeIndex}" FontSize="13"
-                                          MinWidth="150" HorizontalAlignment="Left">
-                                    <ComboBoxItem Content="自动（跟着背景图）"/>
-                                    <ComboBoxItem Content="暗底白字"/>
-                                    <ComboBoxItem Content="亮底黑字"/>
-                                </ComboBox>
-                            </Grid>
-                            <!-- 背景图片：选中的图会复制一份进插件配置目录 -->
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0" Text="背景图片" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <TextBlock Grid.Column="1" Text="{Binding BackgroundImageSummary}" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                <Button Grid.Column="2" FontSize="13" CornerRadius="6" Padding="10,4"
-                                        Cursor="Hand" Click="PickBackgroundImage_Click">
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                        <TextBlock Classes="icon" Text="{ci:LI FolderOpen}" FontSize="12"/>
-                                        <TextBlock Text="选择图片" FontSize="13" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                                <Button Grid.Column="3" FontSize="13" CornerRadius="6" Padding="10,4"
-                                        Cursor="Hand" Click="ClearBackgroundImage_Click">
-                                    <TextBlock Text="清除" FontSize="13"/>
-                                </Button>
-                            </Grid>
-                            <TextBlock Text="{Binding BackgroundImageHint}" FontSize="11"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap"/>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0" Text="填充方式" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <ComboBox Grid.Column="1" SelectedIndex="{Binding BackgroundImageStretchIndex}" FontSize="13"
-                                          MinWidth="150" HorizontalAlignment="Left">
-                                    <ComboBoxItem Content="铺满整屏（裁掉多余）"/>
-                                    <ComboBoxItem Content="完整显示（两侧模糊补齐）"/>
-                                    <ComboBoxItem Content="拉伸铺满"/>
-                                </ComboBox>
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0" Text="背景明暗" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <Slider Grid.Column="1" Value="{Binding BackgroundDim}" Minimum="-100" Maximum="100"
-                                        TickFrequency="10" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding BackgroundDimText}" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="60" TextAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0" Text="◯◯玻璃" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <ComboBox Grid.Column="1" SelectedIndex="{Binding GlassModeIndex}" FontSize="13"
-                                          MinWidth="150" HorizontalAlignment="Left">
-                                    <ComboBoxItem Content="关闭"/>
-                                    <ComboBoxItem Content="半透明"/>
-                                    <ComboBoxItem Content="磨砂"/>
-                                    <ComboBoxItem Content="真•◯◯玻璃"/>
-                                </ComboBox>
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
-                                  IsVisible="{Binding IsOpacityRowVisible}">
-                                <TextBlock Grid.Column="0" Text="透明度" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <Slider Grid.Column="1" Value="{Binding GlassOpacity}" Minimum="0" Maximum="100"
-                                        TickFrequency="5" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding GlassOpacityText}" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="60" TextAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
-                                  IsVisible="{Binding IsGrainRowVisible}">
-                                <TextBlock Grid.Column="0" Text="磨砂颗粒度" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <Slider Grid.Column="1" Value="{Binding GlassBlurRadius}" Minimum="1" Maximum="64"
-                                        TickFrequency="4" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding GlassBlurRadiusText}" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="60" TextAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
-                                  IsVisible="{Binding IsLiquidRowVisible}">
-                                <TextBlock Grid.Column="0" Text="折射强度" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <Slider Grid.Column="1" Value="{Binding GlassRefraction}" Minimum="0" Maximum="100"
-                                        TickFrequency="5" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding GlassRefractionText}" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="60" TextAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8"
-                                  IsVisible="{Binding IsLiquidRowVisible}">
-                                <TextBlock Grid.Column="0" Text="雾面浓度" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                <Slider Grid.Column="1" Value="{Binding GlassFrost}" Minimum="0" Maximum="100"
-                                        TickFrequency="5" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding GlassFrostText}" FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="60" TextAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                        </StackPanel>
-                    </Expander>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="时钟字号" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider x:Name="ClockFontSlider" Grid.Column="1"
-                                Value="{Binding ClockFontSize}" Minimum="60" Maximum="400"
-                                TickFrequency="20" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="{Binding ClockFontSizeText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40" TextAlignment="Center" VerticalAlignment="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="课程信息字号" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider x:Name="CourseInfoFontSlider" Grid.Column="1"
-                                Value="{Binding CourseInfoFontSize}" Minimum="14" Maximum="72"
-                                TickFrequency="2" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="{Binding CourseInfoFontSizeText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40" TextAlignment="Center" VerticalAlignment="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="计数字号" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider x:Name="CountFontSlider" Grid.Column="1"
-                                Value="{Binding CountFontSize}" Minimum="12" Maximum="72"
-                                TickFrequency="2" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="{Binding CountFontSizeText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40" TextAlignment="Center" VerticalAlignment="Center"/>
-                    </Grid>
-                    <!-- 上下位置：数值 = 该块中心落在主体区（去掉顶部提醒行与底部各行后剩下的那块）高度的百分之几 -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="时钟位置" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <!-- 上下限跟着大屏那边的限位走：拖到头就是屏幕上能到的最上/最下，不进死区 -->
-                        <Slider x:Name="ClockPositionSlider" Grid.Column="1"
-                                Minimum="{Binding ClockPositionMin}" Maximum="{Binding ClockPositionMax}"
-                                Value="{Binding ClockPositionPercent}"
-                                TickFrequency="5" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="{Binding ClockPositionPercentText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40" TextAlignment="Center" VerticalAlignment="Center"/>
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="音量条位置" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <Slider x:Name="VolumePositionSlider" Grid.Column="1"
-                                Minimum="{Binding VolumePositionMin}" Maximum="{Binding VolumePositionMax}"
-                                Value="{Binding VolumePositionPercent}"
-                                TickFrequency="5" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="{Binding VolumePositionPercentText}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="40" TextAlignment="Center" VerticalAlignment="Center"/>
-                    </Grid>
-                    <!-- 颜色选择：色块在每行最右，点击弹出 HSV 面板。切主题时这几个色会被写成该主题的默认值，之后仍可自己调 -->
-                    <!-- 背景色不可调：它由主题定（明亮 = 白、黑暗 = 黑），不跟着主题走的话
-                         切主题后整块只有底色没变，反而更别扭 -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                        <TextBlock Grid.Column="0" Text="时钟字体颜色" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <TextBlock Grid.Column="1" Text="{Binding FontColorHex}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        <cp:ColorPicker Grid.Column="2" Color="{Binding FontColorValue}"
-                                        IsAccentColorsVisible="False" Width="90" Height="28"
-                                        HorizontalAlignment="Right">
-                            <cp:ColorPicker.Content>
-                                <Border Background="{Binding FontColorBrush}" CornerRadius="3"
-                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"/>
-                            </cp:ColorPicker.Content>
-                        </cp:ColorPicker>
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                        <TextBlock Grid.Column="0" Text="进度条颜色" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <TextBlock Grid.Column="1" Text="{Binding ProgressColorHex}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        <cp:ColorPicker Grid.Column="2" Color="{Binding ProgressColorValue}"
-                                        IsAccentColorsVisible="False" Width="90" Height="28"
-                                        HorizontalAlignment="Right">
-                            <cp:ColorPicker.Content>
-                                <Border Background="{Binding ProgressColorBrush}" CornerRadius="3"
-                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"/>
-                            </cp:ColorPicker.Content>
-                        </cp:ColorPicker>
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                        <TextBlock Grid.Column="0" Text="课程信息颜色" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <TextBlock Grid.Column="1" Text="{Binding CourseInfoColorHex}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        <cp:ColorPicker Grid.Column="2" Color="{Binding CourseInfoColorValue}"
-                                        IsAccentColorsVisible="False" Width="90" Height="28"
-                                        HorizontalAlignment="Right">
-                            <cp:ColorPicker.Content>
-                                <Border Background="{Binding CourseInfoColorBrush}" CornerRadius="3"
-                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"/>
-                            </cp:ColorPicker.Content>
-                        </cp:ColorPicker>
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                        <TextBlock Grid.Column="0" Text="音量条文字颜色" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <TextBlock Grid.Column="1" Text="{Binding NoiseTitleColorHex}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        <cp:ColorPicker Grid.Column="2" Color="{Binding NoiseTitleColorValue}"
-                                        IsAccentColorsVisible="False" Width="90" Height="28"
-                                        HorizontalAlignment="Right">
-                            <cp:ColorPicker.Content>
-                                <Border Background="{Binding NoiseTitleColorBrush}" CornerRadius="3"
-                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"/>
-                            </cp:ColorPicker.Content>
-                        </cp:ColorPicker>
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                        <TextBlock Grid.Column="0" Text="降水提醒颜色" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                        <TextBlock Grid.Column="1" Text="{Binding RainColorHex}" FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        <cp:ColorPicker Grid.Column="2" Color="{Binding RainColorValue}"
-                                        IsAccentColorsVisible="False" Width="90" Height="28"
-                                        HorizontalAlignment="Right">
-                            <cp:ColorPicker.Content>
-                                <Border Background="{Binding RainColorBrush}" CornerRadius="3"
-                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"/>
-                            </cp:ColorPicker.Content>
-                        </cp:ColorPicker>
-                    </Grid>
-                </StackPanel>
-                </Border>
-                <!-- 规则说明 -->
-                <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="4" Padding="14,12">
-                <StackPanel Spacing="4">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Classes="icon" Text="{ci:LI ScrollText}" FontSize="17"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-                        <TextBlock Text="记录规则" FontSize="17" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
+                    <controls2:SettingsExpander Header="噪音记录"
+                                                Description="满「起算底线」秒才记一次，瞬时噪音不算"
+                                                IconSource="{controls1:FluentIconSource &#xE3E0;}">
+                        <controls2:SettingsExpanderItem Content="起算底线"
+                                                        Description="累计满该时长才记一次">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding NoisySustainSeconds}"
+                                            Minimum="0.5" Maximum="5" TickFrequency="0.1"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding NoisySustainSecondsText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="回落窗口"
+                                                        Description="短暂回落不超过该时长仍算一次">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding FallWindowSeconds}"
+                                            Minimum="0" Maximum="15" TickFrequency="0.5"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding FallWindowSecondsText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="上课初期保护"
+                                                        Description="上课开始后前 N 分钟不计数。"
+                                                        IconSource="{controls1:FluentIconSource &#xEF4F;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <ToggleSwitch IsChecked="{Binding SkipFirst3Min}"/>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="保护时长"
+                                                        Description="仅在开启「上课初期保护」时生效（分钟）。"
+                                                        IsEnabled="{Binding SkipFirst3Min}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding SkipFirstMinutes}"
+                                            Minimum="0" Maximum="10" TickFrequency="1"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding SkipFirstMinutesText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="调试日志"
+                                                        Description="输出 NoiseDebugLog.csv 便于校准，用完关掉"
+                                                        IconSource="{controls1:FluentIconSource &#xF4C1;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <ToggleSwitch IsChecked="{Binding EnableNoiseDebugLog}"/>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="日志保留天数"
+                                                        Description="旧日志按天数清理。"
+                                                        IconSource="{controls1:FluentIconSource &#xE687;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding LogRetentionDays}"
+                                            Minimum="1" Maximum="5" TickFrequency="1"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding LogRetentionDaysText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="56"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="保留规则"
+                                                        Description="按记录时长或按文件大小保留调试日志。">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <RadioButton GroupName="LogKeepMode" Content="按记录时长" FontSize="13"
+                                                 VerticalAlignment="Center" IsChecked="{Binding LogKeepByDuration}"/>
+                                    <RadioButton GroupName="LogKeepMode" Content="按文件大小" FontSize="13"
+                                                 VerticalAlignment="Center" IsChecked="{Binding LogKeepBySize}"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="{Binding LogKeepLabel}"
+                                                        Description="达不到该值的日志会被自动删除">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding LogKeepValue}"
+                                            Minimum="{Binding LogKeepMinimum}" Maximum="{Binding LogKeepMaximum}"
+                                            TickFrequency="{Binding LogKeepTick}"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding LogKeepValueText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="64"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                        <controls2:SettingsExpanderItem Content="调试数据目录"
+                                                        Description="打开日志所在的插件配置目录"
+                                                        IconSource="{controls1:FluentIconSource &#xE88D;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <Button Content="打开目录" FontSize="13" Padding="12,5" CornerRadius="6"
+                                        Cursor="Hand" Click="OpenLogFolder_Click"/>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                    </controls2:SettingsExpander>
+                    <!-- ============ 记录规则 ============ -->
+                    <Separator Margin="0 12 0 4"/>
+                    <controls1:IconText Glyph="&#xE687;" Text="记录规则" Margin="0 4 0 4"/>
                     <TextBlock Text="• 一段噪音累计满「起算底线」秒才记一次（默认 1 秒），咳嗽、喷嚏等瞬时噪音不计数"
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
                     <TextBlock Text="• 一段内音量短暂回落到安静/良好（不超过「回落窗口」，默认 5 秒）又重新吵起，仍并成一次"
@@ -684,47 +630,250 @@
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
                     <TextBlock Text="• 开启「上课初期保护」后，上课开始后前 N 分钟不计数"
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5" Margin="0,6,0,0">
-                        <TextBlock Classes="icon" Text="{ci:LI TriangleAlert}" FontSize="13"
-                                   Foreground="#d97706"/>
-                        <TextBlock Grid.Column="1" Text="免责声明：分贝记录仅供参考，可能受教室风扇、空调、开关门、桌椅移动、脚步声等环境杂音影响，不代表真实纪律状况。"
-                                   FontSize="12" Foreground="#d97706" TextWrapping="Wrap"/>
-                    </Grid>
-                </StackPanel>
-                </Border>
+                    <TextBlock Text="免责声明：分贝记录仅供参考，可能受教室风扇、空调、开关门、桌椅移动、脚步声等环境杂音影响，不代表真实纪律状况。"
+                               FontSize="12" Foreground="#d97706" TextWrapping="Wrap" Margin="0 6 0 0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <controls1:IconText Glyph="&#xEC4A;" Text="外观"/>
+                </TabItem.Header>
+                <ScrollViewer>
+                    <StackPanel Classes="settings-container animated-intro">
+                    <!-- ============ 外观 ============ -->
+                    <Separator Margin="0 12 0 4"/>
+                    <controls1:IconText Glyph="&#xEC4A;" Text="外观" Margin="0 4 0 4"/>
 
-            </StackPanel>
-        </ScrollViewer>
+                    <controls2:SettingsExpander Header="主题"
+                                                Description="开了自定义背景则由其决定明暗"
+                                                IconSource="{controls1:FluentIconSource &#xE51E;}">
+                        <controls2:SettingsExpander.Footer>
+                            <ComboBox SelectedIndex="{Binding ThemeModeIndex}" FontSize="13" MinWidth="180"
+                                      IsEnabled="{Binding IsAppearanceThemeEnabled}">
+                                <ComboBoxItem Content="跟随 ClassIsland"/>
+                                <ComboBoxItem Content="明亮"/>
+                                <ComboBoxItem Content="黑暗"/>
+                            </ComboBox>
+                        </controls2:SettingsExpander.Footer>
+                    </controls2:SettingsExpander>
 
-        <!-- ===== 右栏：实时预览（置顶不滚动）+ 进入全屏时钟 =====
+                    <controls2:SettingsExpander Header="背景"
+                                                Description="提取当前壁纸、纯色或自定义图片"
+                                                IconSource="{controls1:FluentIconSource &#xE520;}"
+                                                IsExpanded="{Binding IsBackgroundSectionExpanded, Mode=TwoWay}">
+                        <controls2:SettingsExpanderItem Content="背景类型"
+                                                        Description="大屏背景从哪里来。">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <ComboBox SelectedIndex="{Binding BackgroundKindIndex}" FontSize="13"
+                                          MinWidth="180">
+                                    <ComboBoxItem Content="提取当前壁纸"/>
+                                    <ComboBoxItem Content="纯色背景"/>
+                                    <ComboBoxItem Content="自定义图片"/>
+                                </ComboBox>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+
+                        <controls2:SettingsExpanderItem Content="景深放大"
+                                                        Description="放大壁纸藏住边缘，越大裁得越多"
+                                                        IsVisible="{Binding IsWallpaperBackground}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding WallpaperZoom}" Minimum="1.0"
+                                            Maximum="1.6" TickFrequency="0.01" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding WallpaperZoomText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               Width="60" TextAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+
+                        <controls2:SettingsExpanderItem Content="模糊半径"
+                                                        Description="壁纸的磨砂程度，0 为不模糊"
+                                                        IsVisible="{Binding IsWallpaperBackground}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding WallpaperBlurRadius}" Minimum="0"
+                                            Maximum="64" TickFrequency="1" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding WallpaperBlurRadiusText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               Width="60" TextAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+
+                        <controls2:SettingsExpanderItem Content="背景颜色"
+                                                        Description="纯色背景的填充色。"
+                                                        IsVisible="{Binding IsSolidColorBackground}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="{Binding BackgroundColorHex}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <cp:ColorPicker Color="{Binding BackgroundColorValue, Mode=TwoWay}"
+                                                    IsAccentColorsVisible="False" Width="90" Height="28">
+                                        <cp:ColorPicker.Content>
+                                            <Border Background="{Binding BackgroundColorBrush}"
+                                                    CornerRadius="3"
+                                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"/>
+                                        </cp:ColorPicker.Content>
+                                    </cp:ColorPicker>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+
+                        <controls2:SettingsExpanderItem Content="背景图片"
+                                                        Description="选中的图会复制一份进插件配置目录。"
+                                                        IsVisible="{Binding IsCustomImageBackground}"
+                                                        IconSource="{controls1:FluentIconSource &#xE9B2;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Spacing="4" Width="320">
+                                    <TextBlock Text="{Binding BackgroundImageSummary}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="选择图片" FontSize="13" Padding="12,5" CornerRadius="6"
+                                                Cursor="Hand" Click="PickBackgroundImage_Click"/>
+                                        <Button Content="清除" FontSize="13" Padding="12,5" CornerRadius="6"
+                                                Cursor="Hand" Click="ClearBackgroundImage_Click"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding BackgroundImageHint}" FontSize="11"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+
+                        <controls2:SettingsExpanderItem Content="填充方式"
+                                                        Description="图片按屏幕比例显示的方式。"
+                                                        IsVisible="{Binding IsCustomImageBackground}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <ComboBox SelectedIndex="{Binding BackgroundImageStretchIndex}" FontSize="13"
+                                          MinWidth="180">
+                                    <ComboBoxItem Content="铺满整屏（裁掉多余）"/>
+                                    <ComboBoxItem Content="完整显示（两侧模糊补齐）"/>
+                                    <ComboBoxItem Content="拉伸铺满"/>
+                                </ComboBox>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+
+                        <controls2:SettingsExpanderItem Content="背景明暗"
+                                                        Description="负值压暗、正值提亮。">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding BackgroundDim}" Minimum="-100" Maximum="100"
+                                            TickFrequency="10" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding BackgroundDimText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="60"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+
+                    </controls2:SettingsExpander>
+
+                    <controls2:SettingsExpander Header="动画速率"
+                                                Description="开屏推近与淡入淡出的快慢，越大越快"
+                                                IconSource="{controls1:FluentIconSource &#xE84F;}">
+                        <controls2:SettingsExpander.Footer>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Slider Width="180" Value="{Binding AnimationSpeed}" Minimum="0.5"
+                                        Maximum="2" TickFrequency="0.05" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding AnimationSpeedText}" FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="60"
+                                           TextAlignment="Center" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </controls2:SettingsExpander.Footer>
+                    </controls2:SettingsExpander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem>
+                <TabItem.Header>
+                    <controls1:IconText Glyph="&#xE84F;" Text="运行"/>
+                </TabItem.Header>
+                <ScrollViewer>
+                    <StackPanel Classes="settings-container animated-intro">
+                    <!-- ============ 运行 ============ -->
+                    <Separator Margin="0 12 0 4"/>
+                    <controls1:IconText Glyph="&#xE84F;" Text="运行" Margin="0 4 0 4"/>
+
+                    <controls2:SettingsExpander Header="最小化后暂停"
+                                                Description="暂停计时与全部检测，点回即恢复"
+                                                IconSource="{controls1:FluentIconSource &#xEC91;}">
+                        <controls2:SettingsExpander.Footer>
+                            <ToggleSwitch IsChecked="{Binding PauseWhenMinimized}"/>
+                        </controls2:SettingsExpander.Footer>
+                        <controls2:SettingsExpanderItem Content="暂停时长"
+                                                        Description="最小化超过该时长后暂停（分钟）。"
+                                                        IsEnabled="{Binding PauseWhenMinimized}"
+                                                        IconSource="{controls1:FluentIconSource &#xF361;}">
+                            <controls2:SettingsExpanderItem.Footer>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Slider Width="180" Value="{Binding MinimizePauseMinutes}"
+                                            Minimum="1" Maximum="30" TickFrequency="1"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding MinimizePauseMinutesText}" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" Width="52"
+                                               TextAlignment="Center" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </controls2:SettingsExpanderItem.Footer>
+                        </controls2:SettingsExpanderItem>
+                    </controls2:SettingsExpander>
+
+                    <controls2:SettingsExpander Header="重置所有设置"
+                                                Description="组件开关、顺序、大小位置、颜色字号、音量阈值与背景全部恢复默认"
+                                                IconSource="{controls1:FluentIconSource &#xE161;}">
+                        <controls2:SettingsExpander.Footer>
+                            <Button Content="一键重置" Padding="12,5" CornerRadius="6"
+                                    Click="ResetAllSettings_Click"/>
+                        </controls2:SettingsExpander.Footer>
+                    </controls2:SettingsExpander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+
+        <!-- ============ 右：实时预览 ============
              预览不是照着重画的小样，而是把大屏那面墙（ClockSurface）本身等比缩进这个框里：
-             布局、字号、颜色、时钟与音量条的位置都出自同一份 XAML，不可能和大屏对不上。
-             尺寸按大屏那块屏幕的长宽比算，所以各种比例下看到的都是真实观感。 -->
-        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Top" Margin="4,8,0,0">
-            <TextBlock Text="预览" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-            <Border Background="{Binding BackgroundColorBrush}" CornerRadius="12" ClipToBounds="True">
-                <Viewbox Stretch="Uniform">
-                    <!-- Panel 只负责给出「大屏那块屏幕的尺寸」；ClockSurface 拿的是 ViewModel。
-                         分开写是因为 ClockSurface 的 DataContext 一旦换成 ViewModel，
-                         它自己身上的宽高绑定就会跑去 ViewModel 上找 PreviewWidth 了。 -->
-                    <Panel Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}">
-                        <views:ClockSurface IsPreview="True" IsHitTestVisible="False"
-                                            BackdropCornerRadius="12"
-                                            DataContext="{Binding PreviewVm}"/>
-                    </Panel>
-                </Viewbox>
-            </Border>
-            <Button FontSize="15" FontWeight="Bold"
-                    Foreground="#ffffff" Background="#2e7d32"
-                    CornerRadius="8" Padding="10,8"
-                    Cursor="Hand" Click="TestButton_Click"
-                    HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center">
-                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                    <TextBlock Classes="icon" Text="{ci:LI Play}" FontSize="15" Foreground="#ffffff"/>
-                    <TextBlock Text="进入全屏时钟" FontSize="15" FontWeight="Bold" Foreground="#ffffff" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-        </StackPanel>
+             布局、字号、颜色、时钟与音量条的位置都出自同一份 XAML，不可能和大屏对不上。 -->
+        <Border Grid.Column="1" Width="332" Margin="0 12 18 12" VerticalAlignment="Top"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1" CornerRadius="8" Padding="12">
+            <StackPanel Spacing="8">
+                <controls1:IconText Glyph="&#xE813;" Text="实时预览" Margin="0 0 0 4"/>
+                <Border Background="{Binding BackgroundColorBrush}" CornerRadius="8" ClipToBounds="True">
+                    <Viewbox Stretch="Uniform">
+                        <!-- Panel 只负责给出「大屏那块屏幕的尺寸」；ClockSurface 拿的是 ViewModel。
+                             分开写是因为 ClockSurface 的 DataContext 一旦换成 ViewModel，
+                             它自己身上的宽高绑定就会跑去 ViewModel 上找 PreviewWidth 了。 -->
+                        <Panel Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}">
+                            <views:ClockSurface IsPreview="True" IsHitTestVisible="False"
+                                                BackdropCornerRadius="8"
+                                                DataContext="{Binding PreviewVm}"/>
+                        </Panel>
+                    </Viewbox>
+                </Border>
+                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Background="#2e7d32" CornerRadius="6" Padding="14,7"
+                        Cursor="Hand" Click="TestButton_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <controls1:FluentIcon Glyph="&#xE8D1;" FontSize="16" Foreground="#ffffff"
+                                             VerticalAlignment="Center"/>
+                        <TextBlock Text="进入全屏时钟" FontSize="14" FontWeight="Bold" Foreground="#ffffff"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <TextBlock Text="预览即大屏真身：布局、字号、玻璃与折射效果和全屏时完全一致。"
+                           FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

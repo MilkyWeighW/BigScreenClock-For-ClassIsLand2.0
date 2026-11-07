@@ -12,6 +12,12 @@
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     </PropertyGroup>
 
+    <!-- 对外发布版不带调试符号：cipx 里那份 pdb 有 139KB，玩家看堆栈也用不上行号 -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
+    </PropertyGroup>
+
     <PropertyGroup>
         <ClassIslandPluginSdkVersion>2.1.0.1</ClassIslandPluginSdkVersion>
     </PropertyGroup>
@@ -105,6 +111,23 @@
             <Output TaskParameter="StampedVersion" PropertyName="_StampedVersion" />
         </StampDevBuild>
         <Message Importance="high" Text="插件版本：$(_StampedVersion)" />
+    </Target>
+
+    <!--
+      打包瘦身：NAudio 是元包，会把 Asio/Midi/WinForms 三个本插件根本用不到的后端一起拷进来
+      （本插件只用 NAudio.Wave 里的 WaveInEvent，实际需要 NAudio.dll / Core / WinMM / Wasapi）。
+      在 CreateCipx 动手之前把多余文件从输出目录删掉，cipx 里就不会带上；
+      README.md 仍然打进包（插件说明随包走，用户解包就能看到）。
+    -->
+    <Target Name="TrimCipxPayload" BeforeTargets="CreateCipx">
+        <ItemGroup>
+            <_CipxUnused Include="$(OutputPath)NAudio.Asio.dll;
+                                 $(OutputPath)NAudio.Midi.dll;
+                                 $(OutputPath)NAudio.WinForms.dll" />
+            <_CipxUnused Include="$(OutputPath)EveningSelfStudyClock.pdb"
+                         Condition="'$(Configuration)' == 'Release'" />
+        </ItemGroup>
+        <Delete Files="@(_CipxUnused)" ContinueOnError="true" />
     </Target>
 
     <ItemGroup>

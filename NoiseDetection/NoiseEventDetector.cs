@@ -191,13 +191,29 @@ public sealed class NoiseEventDetector
         => level == NoiseLevel.Normal || level == NoiseLevel.Noisy;
 
     /// <summary>
-    /// 迟滞分级（Schmitt 触发）：升级用名义阈值，降级用名义阈值 × HysteresisFactor。
+    /// 迟滞分级（Schmitt 触发）。分级阶梯：静音 → 良好 → 一般 → 吵闹。
+    ///
+    /// - 升级（名义阈值）：静音→良好 用 <see cref="GoodThreshold"/>；良好→一般 用
+    ///   <see cref="NormalThreshold"/>；一般→吵闹 用 <see cref="NoisyThreshold"/>。
+    /// - 降级（名义阈值 × <see cref="HysteresisFactor"/>）：吵闹→一般 用 NoisyThreshold×H；
+    ///   一般→良好 用 NormalThreshold×H；良好→静音 用「GoodThreshold×H」与用户设置的
+    ///   <see cref="QuietThreshold"/>（设置页的「安静阈值 / 安静上界」）中的较高者，
+    ///   再夹到不超过 GoodThreshold —— 即安静阈值调高过迟滞下界时，静音/良好的降级分界
+    ///   随之抬高（更多声音算良好）；调到迟滞下界以下不改变结果，默认值 0.005 对 0.015
+    ///   下界 0.012 正是如此，故默认行为与旧版一致。
+    ///
+    /// 迟滞带保证边界附近来回抖动不跳档（升级线 ≥ 降级线，Clamp 保证二者不会倒挂）。
     /// </summary>
     private NoiseLevel Classify(double rms, NoiseLevel current)
     {
         double goodDown = GoodThreshold * HysteresisFactor;
         double normalDown = NormalThreshold * HysteresisFactor;
         double noisyDown = NoisyThreshold * HysteresisFactor;
+
+        // 静音/良好 的降级线：默认就是原有的 goodDown；安静阈值更高时跟随用户设置，
+        // 但不允许高过升级线 GoodThreshold（否则同一点既升级又降级，会每块音频来回跳）。
+        double quietDown = goodDown;
+        if (QuietThreshold > quietDown) quietDown = Math.Min(QuietThreshold, GoodThreshold);
 
         switch (current)
         {
@@ -209,12 +225,12 @@ public sealed class NoiseEventDetector
             case NoiseLevel.Good:
                 if (rms >= NoisyThreshold) return NoiseLevel.Noisy;
                 if (rms >= NormalThreshold) return NoiseLevel.Normal;
-                if (rms < goodDown) return NoiseLevel.Quiet;
+                if (rms < quietDown) return NoiseLevel.Quiet;
                 return NoiseLevel.Good;
             case NoiseLevel.Normal:
                 if (rms >= NoisyThreshold) return NoiseLevel.Noisy;
                 if (rms < normalDown)
-                    return rms < goodDown ? NoiseLevel.Quiet : NoiseLevel.Good;
+                    return rms < quietDown ? NoiseLevel.Quiet : NoiseLevel.Good;
                 return NoiseLevel.Normal;
             case NoiseLevel.Noisy:
                 if (rms < noisyDown)

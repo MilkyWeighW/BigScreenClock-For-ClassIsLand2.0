@@ -1,7 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:ci="clr-namespace:ClassIsland.Core.MarkupExtensions;assembly=ClassIsland.Core"
-        xmlns:cis="clr-namespace:ClassIsland.Core;assembly=ClassIsland.Core"
+        xmlns:controls1="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core"
         x:Class="EveningSelfStudyClock.Views.AboutPopupWindow"
         Title="关于 大屏时钟"
         Width="460" Height="262"
@@ -15,9 +14,6 @@
         FontFamily="Microsoft YaHei,SimHei,sans-serif">
 
     <Window.Styles>
-        <Style Selector="TextBlock.icon">
-            <Setter Property="FontFamily" Value="{x:Static cis:AppBase.LucideIconsFontFamily}"/>
-        </Style>
         <!-- 两个链接：下划线 + 手型，颜色由 code-behind 按背景明暗给 -->
         <Style Selector="TextBlock.link">
             <Setter Property="FontSize" Value="13"/>
@@ -31,8 +27,8 @@
     <Border x:Name="PanelBorder" CornerRadius="16" BorderThickness="1">
         <StackPanel Margin="24,20" Spacing="10" VerticalAlignment="Center" HorizontalAlignment="Center">
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                <TextBlock x:Name="TitleIcon" Classes="icon" Text="{ci:LI Clock}" FontSize="22" Foreground="#ffffff"
-                           VerticalAlignment="Center"/>
+                <controls1:FluentIcon x:Name="TitleIcon" Glyph="&#xF361;" FontSize="22" Foreground="#ffffff"
+                                      VerticalAlignment="Center"/>
                 <TextBlock x:Name="TitleText" Text="大屏时钟" FontSize="22" FontWeight="Bold" Foreground="#ffffff"
                            VerticalAlignment="Center"/>
             </StackPanel>

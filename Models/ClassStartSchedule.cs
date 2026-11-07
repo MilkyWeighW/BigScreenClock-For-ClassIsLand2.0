@@ -10,19 +10,20 @@ namespace EveningSelfStudyClock.Models;
 public static class ClassStartSchedule
 {
     /// <summary>课表里的一个时段。</summary>
-    public readonly record struct Slot(TimeSpan Start, TimeSpan End, bool IsClass, string? Subject);
+    public readonly record struct Slot(TimeSpan Start, TimeSpan End, bool IsClass, string? Subject, string? SubjectId = null);
 
     /// <summary>
     /// <paramref name="now"/> 之后、今天还没开始的目标课程里最早的那一节的上课时刻。
+    /// <paramref name="isTarget"/> 同时拿到科目名与科目 Id（同名不同绑定的课靠 Id 区分）。
     /// 没有（今天已经没有目标课 / 正在上的这一节就是目标课）返回 null。
     /// </summary>
-    public static DateTime? NextTargetStart(IEnumerable<Slot> slots, Func<string?, bool> isTarget, DateTime now)
+    public static DateTime? NextTargetStart(IEnumerable<Slot> slots, Func<string?, string?, bool> isTarget, DateTime now)
     {
         DateTime? best = null;
         foreach (var slot in slots)
         {
             if (!slot.IsClass || string.IsNullOrEmpty(slot.Subject)) continue;
-            if (!isTarget(slot.Subject)) continue;
+            if (!isTarget(slot.Subject, slot.SubjectId)) continue;
             if (slot.Start <= now.TimeOfDay) continue;
 
             var at = now.Date + slot.Start;

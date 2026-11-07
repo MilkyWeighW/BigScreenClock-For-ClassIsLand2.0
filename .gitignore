@@ -1,0 +1,25 @@
+# ---- 构建产物（本机生成，不入库）----
+bin/
+obj/
+cipx/
+TestResults/
+
+# ---- 开发版版本号计数器（每次构建自动生成）----
+devbuild.txt
+
+# ---- Visual Studio ----
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ---- JetBrains Rider ----
+.idea/
+*.sln.iml
+
+# ---- VS Code ----
+.vscode/
+
+# 注意：.analysis/、manifest.yml、icon.png、NativeMethods.txt、README.md 等是需要入库的文件，
+# 不要加入忽略列表。
