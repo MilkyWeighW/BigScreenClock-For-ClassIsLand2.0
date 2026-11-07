@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using Avalonia.Media;
 
-namespace EveningSelfStudyClock.ViewModels;
+namespace LargeScreenClock.ViewModels;
 
 /// <summary>
 /// 音量条档位文字的数据项（安静/良好/一般/吵闹/嘈杂）。

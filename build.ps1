@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    大屏时钟（BigScreenClock）插件构建脚本。
+    大屏时钟（Large-Screen-Clock）插件构建脚本。
 
 .DESCRIPTION
     统一封装本项目（net8.0-windows）的 NuGet 还原、构建、插件打包与产物定位流程：
@@ -202,9 +202,9 @@ function Show-Help {
   pwsh -File ./build.ps1 -Configuration Debug -Dev
 
 产物：
-  bin/<Configuration>/net8.0-windows/EveningSelfStudyClock.dll   插件程序集
+  bin/<Configuration>/net8.0-windows/Large-Screen-Clock.dll   插件程序集
   bin/<Configuration>/net8.0-windows/manifest.yml                 已盖号的运行时清单
-  cipx/EveningSelfStudyClock.cipx                                 插件包（同级 checksums.md 记录 MD5）
+  cipx/Large-Screen-Clock.cipx                                 插件包（同级 checksums.md 记录 MD5）
 
 说明：
   * 需要 .NET SDK 8 或更高版本（目标框架 net8.0-windows）。
@@ -245,6 +245,8 @@ if ($csprojFiles.Count -gt 1) {
 
 $projectPath = $csprojFiles[0].FullName
 $projectName = [System.IO.Path]::GetFileNameWithoutExtension($csprojFiles[0].Name)
+# 程序集名与工程名不同（csproj 里 AssemblyName 带连字符），产物定位统一用这个
+$assemblyName = 'Large-Screen-Clock'
 
 Write-Host ''
 Write-Host '大屏时钟构建脚本' -ForegroundColor White
@@ -386,12 +388,12 @@ Write-Step '定位构建产物'
 
 $outputBase = Join-Path (Join-Path $script:ScriptDir 'bin') $Configuration
 $tfmDir = Join-Path $outputBase $script:TargetFramework
-$dllPath = Join-Path $tfmDir "$projectName.dll"
+$dllPath = Join-Path $tfmDir "$assemblyName.dll"
 $manifestPath = Join-Path $tfmDir 'manifest.yml'
 
 # 兜底：若 TargetFramework 变了，就在 bin/<Configuration> 下按名字搜索
 if (-not (Test-Path -LiteralPath $dllPath -PathType Leaf)) {
-    $foundDll = Get-ChildItem -LiteralPath $outputBase -Recurse -Filter "$projectName.dll" -File -ErrorAction SilentlyContinue |
+    $foundDll = Get-ChildItem -LiteralPath $outputBase -Recurse -Filter "$assemblyName.dll" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($foundDll) {
         $dllPath = $foundDll.FullName
@@ -418,7 +420,7 @@ foreach ($line in $buildLog) {
 }
 $displayVersion = if (-not [string]::IsNullOrWhiteSpace($manifestVersion)) { $manifestVersion } else { $logVersion }
 
-$cipxPath = Join-Path (Join-Path $script:ScriptDir 'cipx') "$projectName.cipx"
+$cipxPath = Join-Path (Join-Path $script:ScriptDir 'cipx') "$assemblyName.cipx"
 
 Write-Host ''
 Write-Host '构建成功。' -ForegroundColor Green

@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 「自定义图片」组件所用图片的存放：和背景图一样，把用户选的那张**复制一份**进插件配置目录，

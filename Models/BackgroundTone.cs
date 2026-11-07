@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 「自动」主题档用的判定：这张背景图整体算亮还是算暗 —— 亮图配深色玻璃 + 白字（亮壁上压暗、

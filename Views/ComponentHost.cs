@@ -6,9 +6,9 @@ using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using EveningSelfStudyClock.Models;
+using LargeScreenClock.Models;
 
-namespace EveningSelfStudyClock.Views;
+namespace LargeScreenClock.Views;
 
 /// <summary>
 /// 一个「大屏组件」的通用外壳。
@@ -25,8 +25,6 @@ namespace EveningSelfStudyClock.Views;
 /// 为什么用 RenderTransform 而不是改 Margin/LayoutTransform：这面墙是绝对定位的叠层，
 /// 改布局会把邻居顶走；而 RenderTransform 只影响画在哪，自然布局（时钟/音量条那套上下限位）
 /// 一个字节都不用动，默认值（1 / 0 / 0）下变换是单位矩阵，和没有这层壳完全一致。
-/// 代价：玻璃是从背景层按各控件布局矩形整层画的，缩放后的组件玻璃不会跟着放大——
-/// 这一点按用户要求先记着，后续单独修。
 /// </summary>
 public class ComponentHost : ContentControl
 {

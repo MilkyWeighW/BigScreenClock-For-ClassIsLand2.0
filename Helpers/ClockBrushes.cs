@@ -1,7 +1,7 @@
 using Avalonia.Media;
-using EveningSelfStudyClock.Models;
+using LargeScreenClock.Models;
 
-namespace EveningSelfStudyClock.Helpers;
+namespace LargeScreenClock.Helpers;
 
 /// <summary>
 /// 一套调色板对应的画刷实例。整批一次性构造、切换主题时整批替换，

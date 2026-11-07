@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="EveningSelfStudyClock.Views.ClockSurface"
+             x:Class="LargeScreenClock.Views.ClockSurface"
              xmlns:controls1="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core"
-             xmlns:views="clr-namespace:EveningSelfStudyClock.Views"
+             xmlns:views="clr-namespace:LargeScreenClock.Views"
              xmlns:sys="using:System"
              FontFamily="Microsoft YaHei,SimHei,sans-serif">
 
@@ -247,8 +247,7 @@
                                    FontWeight="Bold" Margin="16,0,0,0"
                                    VerticalAlignment="Center"/>
                         <!-- 设置页预览专用：没在上课时假装有计数，好让计数字号在预览里也调得动。
-                             放在 DockPanel 里面而不是外面：它撑起来的宽度就是 CounterStrip 的宽度，
-                             玻璃照着 CounterStrip 烘，预览里这块自然也有液态玻璃。
+                             放在 DockPanel 里面而不是外面：它撑起来的宽度就是 CounterStrip 的宽度。
                              分段着色跟真实计数一致（一般=黄、吵闹=红），字号在预览里才看得出效果。 -->
                         <StackPanel x:Name="PreviewCounterPlaceholder" DockPanel.Dock="Left"
                                     Orientation="Horizontal" IsVisible="False" VerticalAlignment="Center">

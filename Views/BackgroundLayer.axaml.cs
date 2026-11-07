@@ -10,11 +10,11 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using EveningSelfStudyClock.Helpers;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.Services;
+using LargeScreenClock.Helpers;
+using LargeScreenClock.Models;
+using LargeScreenClock.Services;
 
-namespace EveningSelfStudyClock.Views;
+namespace LargeScreenClock.Views;
 
 /// <summary>
 /// 大屏背景层：壁纸 / 纯色 / 自定义图片三种类型都在这一层里画。
@@ -27,8 +27,6 @@ namespace EveningSelfStudyClock.Views;
 /// 分工：
 /// - <see cref="Apply"/>：套静态值（类型、图、缩放、明暗），用于设置页预览和运行中改设置；
 /// - <see cref="PlayIntroAsync"/>：开屏那一套完整过渡（压暗截图 → 背景 → 由调用方淡入组件）。
-///
-/// 已经不再有任何「液态玻璃 / 磨砂 / 折射」相关代码：那套整层删掉了，组件文字直接叠在背景上。
 /// </summary>
 public partial class BackgroundLayer : UserControl
 {
@@ -52,9 +50,6 @@ public partial class BackgroundLayer : UserControl
     private bool _attached;
     private bool _appliedOnce;
     private bool _disposed;
-
-    /// <summary>景深推近动画的取消令牌：换背景/换设置/离开视觉树时立刻停手。</summary>
-    private CancellationTokenSource? _zoomCts;
 
     /// <summary>开屏时间线的取消令牌：中途换设置/离开视觉树时停掉旧的那一轮。</summary>
     private CancellationTokenSource? _introCts;
@@ -88,8 +83,7 @@ public partial class BackgroundLayer : UserControl
     {
         if (_disposed) return;
 
-        // 设置一变就停掉正在进行的推近动画与开屏时间线，静态值以这次 Apply 为准
-        StopZoomAnimation();
+        // 设置一变就停掉正在进行的开屏时间线，静态值以这次 Apply 为准
         StopIntroTimeline();
 
         var kind = (BackgroundKind)settings.BackgroundKind;
@@ -563,61 +557,6 @@ public partial class BackgroundLayer : UserControl
             },
         };
 
-    /// <summary>
-    /// 景深推近：手写 16ms 定时器插值，不用 Transitions。
-    /// ScaleTransform 是 RenderTransform，不在可视树里、拿不到动画时钟，
-    /// 给它挂 DoubleTransition 只会「瞬间跳到位」——这正是上一版开屏看不到推近动画的原因。
-    /// </summary>
-    private void AnimateZoomTo(double zoom, int ms)
-    {
-        StopZoomAnimation();
-
-        var cts = new CancellationTokenSource();
-        _zoomCts = cts;
-
-        var from = _targetScale.ScaleX;
-        var duration = Math.Max(1, ms);
-        var sw = Stopwatch.StartNew();
-
-        // 定时器要在 UI 线程上建：BackgroundLayer 的 Apply/PlayIntro 都由 UI 线程发起
-        DispatcherTimer? timer = null;
-        timer = new DispatcherTimer(
-            TimeSpan.FromMilliseconds(16),
-            DispatcherPriority.Render,
-            (_, _) =>
-            {
-                if (cts.IsCancellationRequested)
-                {
-                    timer?.Stop();
-                    return;
-                }
-
-                var t = Math.Clamp(sw.Elapsed.TotalMilliseconds / duration, 0, 1);
-                var eased = 1 - Math.Pow(1 - t, 3); // CubicEaseOut
-                var value = from + (zoom - from) * eased;
-                _targetScale.ScaleX = value;
-                _targetScale.ScaleY = value;
-
-                if (t < 1) return;
-                _targetScale.ScaleX = zoom;
-                _targetScale.ScaleY = zoom;
-                timer?.Stop();
-            });
-
-        timer?.Start();
-    }
-
-    private void StopZoomAnimation()
-    {
-        var cts = _zoomCts;
-        _zoomCts = null;
-        if (cts is null) return;
-
-        cts.Cancel();
-        cts.Dispose();
-        _targetScale.Transitions = null;
-    }
-
     /// <summary>屏幕物理宽度（拿不到时给 1920 兜底）。</summary>
     private int GetScreenPixelWidth()
     {
@@ -654,7 +593,6 @@ public partial class BackgroundLayer : UserControl
     public void ReleaseBitmaps()
     {
         _disposed = true;
-        StopZoomAnimation();
         TargetImage.Source = null;
         PriorImage.Source = null;
         _targetBitmap?.Dispose();

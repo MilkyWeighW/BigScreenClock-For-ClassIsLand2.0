@@ -1,6 +1,6 @@
 using System;
 
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 课程/时段进行进度计算（纯算法，无任何外部依赖，便于单元测试）。

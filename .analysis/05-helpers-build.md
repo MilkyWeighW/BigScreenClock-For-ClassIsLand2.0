@@ -1,6 +1,6 @@
 # 05 · Helpers / 主题 / 背景图管线 / 构建发布 / git 历史
 
-> 范围：`Helpers\*.cs`（LiquidGlassBaker、StackBlur、RoundedRectSdf、OffsetSampler、ClockBrushes、ClockThemeApplier、IconGlyph、StaticOverloadFinder）、`Models\` 中的主题与背景图一族、`EveningSelfStudyClock.csproj` / `manifest.yml` / `NativeMethods.txt` / `Properties\launchSettings.json` / `README.md`，以及 git 历史。
+> 范围：`Helpers\*.cs`（LiquidGlassBaker、StackBlur、RoundedRectSdf、OffsetSampler、ClockBrushes、ClockThemeApplier、IconGlyph、StaticOverloadFinder）、`Models\` 中的主题与背景图一族、`LargeScreenClock.csproj` / `manifest.yml` / `NativeMethods.txt` / `Properties\launchSettings.json` / `README.md`，以及 git 历史。
 > 全部论断附 `相对路径:行号`。源码只读，本报告是唯一写入。
 > 关键外部证据：本机 NuGet 缓存里只有 `classisland.pluginsdk` **1.7.106.2-dev-v2**，其 `build/net8.0/ClassIsland.PluginSdk.targets` 被用来解释 CreateCipx 的行为（工程引用的 2.1.0.1 未在本机缓存中，打包逻辑大概率一致，但结论按"缓存的 1.x targets"标注）。
 
@@ -279,13 +279,13 @@
 
 ## 4. 构建与发布
 
-### 4.1 工程属性（`EveningSelfStudyClock.csproj`）
+### 4.1 工程属性（`LargeScreenClock.csproj`）
 
 | 项 | 值 | 行号 |
 |---|---|---|
 | TargetFramework | `net8.0-windows` | `:4` |
 | CreateCipx | `true`（每份构建都产 cipx） | `:7` |
-| RootNamespace | `EveningSelfStudyClock`（= `manifest.yml:4` 的 `entranceAssembly` 程序集名） | `:8` |
+| RootNamespace | `LargeScreenClock`（= `manifest.yml:4` 的 `entranceAssembly` 程序集名） | `:8` |
 | CopyLocalLockFileAssemblies | `true`（依赖全拷到输出，才可能打进 cipx） | `:9` |
 | AllowUnsafeBlocks | `true`（CsWin32 生成的 P/Invoke 要指针） | `:10-11` |
 | BuiltInComInteropSupport | `true`（摄像头占用检测的 COM 回调接口） | `:12` |
@@ -299,11 +299,11 @@
 
 ### 4.2 manifest vs SDK 版本
 
-`manifest.yml`：`id: com.bigscreen.clock`、`name: 大屏时钟`、`entranceAssembly: "EveningSelfStudyClock.dll"`、`repoOwner/repoName`、`assetsRoot: main`、`version: 1.2.0.0`、**`apiVersion: 2.0.0.0`**、`author: sokumei`、`supportedOSPlatforms: [Windows]`（`manifest.yml:1-13`）。
+`manifest.yml`：`id: com.bigscreen.clock`、`name: 大屏时钟`、`entranceAssembly: "LargeScreenClock.dll"`、`repoOwner/repoName`、`assetsRoot: main`、`version: 1.2.0.0`、**`apiVersion: 2.0.0.0`**、`author: sokumei`、`supportedOSPlatforms: [Windows]`（`manifest.yml:1-13`）。
 
-工程按 **SDK 2.1.0.1** 编译（`EveningSelfStudyClock.csproj:16`），清单却声明 **apiVersion 2.0.0.0**（`manifest.yml:10`）。见 §6 问题 1。
+工程按 **SDK 2.1.0.1** 编译（`LargeScreenClock.csproj:16`），清单却声明 **apiVersion 2.0.0.0**（`manifest.yml:10`）。见 §6 问题 1。
 
-Avalonia 对齐：`Avalonia.Controls.ColorPicker 11.3.17` 与 ClassIsland 主程序同版本，`ExcludeAssets=runtime;native` 避免与宿主重复加载（`EveningSelfStudyClock.csproj:26-29`）。调试走 `Properties\launchSettings.json`：以 CI 可执行文件启动并 `-epp $(TargetDir)` 挂插件目录（`:3-8`），依赖 CI 侧 SDK 提供的两个属性。
+Avalonia 对齐：`Avalonia.Controls.ColorPicker 11.3.17` 与 ClassIsland 主程序同版本，`ExcludeAssets=runtime;native` 避免与宿主重复加载（`LargeScreenClock.csproj:26-29`）。调试走 `Properties\launchSettings.json`：以 CI 可执行文件启动并 `-epp $(TargetDir)` 挂插件目录（`:3-8`），依赖 CI 侧 SDK 提供的两个属性。
 
 ### 4.3 CreateCipx 打包（依据缓存 SDK 1.7.106.2-dev-v2 的 targets）
 
@@ -315,9 +315,9 @@ Avalonia 对齐：`Avalonia.Controls.ColorPicker 11.3.17` 与 ClassIsland 主程
 
 由此得到两个工程层结论：
 1. 打包**没有文件白名单**，`bin/Debug/net8.0-windows` 里有什么就进什么（PDB、旧文件、任何本地杂物）；
-2. 项目自己的 `StampManifestVersion` 必须在 zip 之前跑，所以用 `BeforeTargets="CreateCipx"`（`EveningSelfStudyClock.csproj:91`）；实测顺序成立：`CreateCipx` 是 `AfterTargets="Build"`，而包 targets 在工程 targets 之后导入，`BeforeTargets` 钩子先执行。
+2. 项目自己的 `StampManifestVersion` 必须在 zip 之前跑，所以用 `BeforeTargets="CreateCipx"`（`LargeScreenClock.csproj:91`）；实测顺序成立：`CreateCipx` 是 `AfterTargets="Build"`，而包 targets 在工程 targets 之后导入，`BeforeTargets` 钩子先执行。
 
-### 4.4 DevBuild 五位内部版号机制（`EveningSelfStudyClock.csproj:32-108`）
+### 4.4 DevBuild 五位内部版号机制（`LargeScreenClock.csproj:32-108`）
 
 设计（注释 `:32-44`）：`manifest.yml` 永远只写四位对外版号；本机每次 build 在**打包产物**（`bin` 里那份 manifest 与 cipx）上追加一位递增序号 → `1.1.1.8.1`、`1.1.1.8.2`……源码和 GitHub 上传夹里看不到它。动机：2026-10-12 之前本机改了十几版全叫 `1.1.1.7`，希沃上装错包判断不出是包的问题还是系统的问题。五位号 ClassIsland 能正常加载、日志照原样显示，但**更新检查走 `Version.TryParse`，五位号解析失败会被跳过**——内部开发版天然流不出去。换四位号（如 1.2.0.0）时 `devbuild.txt` 里存的上一个四位号对不上，自动从 `.1` 重新数（`:74-78`）。出对外包：`dotnet build -c Release -t:Rebuild -p:DevBuild=0`（`:43`）。
 
@@ -332,7 +332,7 @@ Avalonia 对齐：`Avalonia.Controls.ColorPicker 11.3.17` 与 ClassIsland 主程
 
 ### 4.5 发布面
 
-`README.md` 是插件说明书兼发布说明（`README.md:1-25`，含 B 站演示视频 BV 号 `:5`），`README.md`/`icon.png`/`manifest.yml` 都 `CopyToOutputDirectory=PreserveNewest` 进输出（`EveningSelfStudyClock.csproj:110-120`）——因此 cipx 里自带 README 与图标，符合 CI 插件市场（`assetsRoot: main`，`manifest.yml:8`）的资产约定。仓库里没有 GitHub Actions/CI 配置，也没有测试工程（`LiquidGlassTests` 只以注释形式出现，`Helpers\OffsetSampler.cs:12`），发布链路是"本机构建 → 手动上传 cipx"。历史上 cipx/bin/obj 曾被提交又删除（`a26660b`、`13392d7`、`6b9cf8a`、`dbc762f`），说明有一段时间发布产物是直接进仓库的。
+`README.md` 是插件说明书兼发布说明（`README.md:1-25`，含 B 站演示视频 BV 号 `:5`），`README.md`/`icon.png`/`manifest.yml` 都 `CopyToOutputDirectory=PreserveNewest` 进输出（`LargeScreenClock.csproj:110-120`）——因此 cipx 里自带 README 与图标，符合 CI 插件市场（`assetsRoot: main`，`manifest.yml:8`）的资产约定。仓库里没有 GitHub Actions/CI 配置，也没有测试工程（`LiquidGlassTests` 只以注释形式出现，`Helpers\OffsetSampler.cs:12`），发布链路是"本机构建 → 手动上传 cipx"。历史上 cipx/bin/obj 曾被提交又删除（`a26660b`、`13392d7`、`6b9cf8a`、`dbc762f`），说明有一段时间发布产物是直接进仓库的。
 
 ---
 
@@ -367,12 +367,12 @@ Avalonia 对齐：`Avalonia.Controls.ColorPicker 11.3.17` 与 ClassIsland 主程
 
 按影响排序，每条给 `文件:行号`。
 
-1. **[高] `apiVersion: 2.0.0.0` 与 SDK 2.1.0.1 不一致**——`manifest.yml:10` 声明宿主只需 API 2.0.0.0，工程却按 `ClassIslandPluginSdkVersion 2.1.0.1` 编译（`EveningSelfStudyClock.csproj:16`）。若 apiVersion 的语义是"插件要求的最低宿主 API"，那么在 2.0.x 宿主上安装时清单校验通过，但一旦用到 2.1 新增 API 就是 `MissingMethodException`/`TypeLoadException`。本机 NuGet 缓存里只有 `classisland.pluginsdk 1.7.106.2-dev-v2`（无 2.1.0.1），也说明本地开发环境与工程声明已经漂移。**建议**：把 apiVersion 提到与 SDK 一致，或显式记录"只用到 2.0 API"的理由。
+1. **[高] `apiVersion: 2.0.0.0` 与 SDK 2.1.0.1 不一致**——`manifest.yml:10` 声明宿主只需 API 2.0.0.0，工程却按 `ClassIslandPluginSdkVersion 2.1.0.1` 编译（`LargeScreenClock.csproj:16`）。若 apiVersion 的语义是"插件要求的最低宿主 API"，那么在 2.0.x 宿主上安装时清单校验通过，但一旦用到 2.1 新增 API 就是 `MissingMethodException`/`TypeLoadException`。本机 NuGet 缓存里只有 `classisland.pluginsdk 1.7.106.2-dev-v2`（无 2.1.0.1），也说明本地开发环境与工程声明已经漂移。**建议**：把 apiVersion 提到与 SDK 一致，或显式记录"只用到 2.0 API"的理由。
 2. **[高] 不认识的图片格式会绕回"按屏宽放大解码"的老路**——`Models\ImageHeader.cs:14` 认不出就返回 `null`，`Models\BackdropImageSet.cs:63` 于是 `native = pixels`（按层物理像素解码）；`Settings\SettingsPage.axaml.cs:374` 的过滤器只认扩展名，一个 AVIF/HEIC/TIFF/JXL 改名成 `.png` 就能选进来。结果正是 `Models\ImageHeader.cs:9-13` 要避免的"小图放大着解，内存翻倍"，也是 `Models\BackdropImageSet.cs:11-12` 记录的看门狗死因。更糟的是失败是静默的：`Models\BackdropImageSet.cs:78-81` 吞异常返回空套 → 纯色底，而设置页仍提示"已复制到插件配置目录"（`Settings\SettingsPage.axaml.cs:384`）。
 3. **[中] "一般"计数色忽略明暗参数，浅底上不可读**——`Models\SemanticColors.cs:16`：`CountNormalHex(bool light) => "#FFDE02"`，参数完全没用；对比 `Models\SemanticColors.cs:19` 的吵闹色是分明暗两版的。白底（Light 调色板 `BackgroundColor #FFFFFF`，`Models\ClockTheme.cs:163`）上 `#FFDE02` 对比度约 1.4:1，注释自己写了"#FFDE02 当文字放白底上对比度不足，改前先看真机"（`Models\SemanticColors.cs:14`）。调用方甚至已经备了两支 brush（`ViewModels\FullScreenClockViewModel.cs:48-51`），但两支同色。
-4. **[中] 构建期改写产物清单 + 无 Inputs/Outputs 的打包目标**——`EveningSelfStudyClock.csproj:91-108` 每次 build 都重拷并盖号；缓存 SDK 的 `CreateCipx` 是 `AfterTargets="Build"` 且无 `Inputs/Outputs`，所以空 build 也会涨序号、重打 cipx、重算 MD5。`devbuild.txt`（`:46`）落在工程根目录且仓库无 `.gitignore` → 构建污染工作区；只读检出或并行构建时 `File.WriteAllLines`（`:80`）会直接把构建打挂。
+4. **[中] 构建期改写产物清单 + 无 Inputs/Outputs 的打包目标**——`LargeScreenClock.csproj:91-108` 每次 build 都重拷并盖号；缓存 SDK 的 `CreateCipx` 是 `AfterTargets="Build"` 且无 `Inputs/Outputs`，所以空 build 也会涨序号、重打 cipx、重算 MD5。`devbuild.txt`（`:46`）落在工程根目录且仓库无 `.gitignore` → 构建污染工作区；只读检出或并行构建时 `File.WriteAllLines`（`:80`）会直接把构建打挂。
 5. **[中] cipx 无文件白名单，整目录压缩**——缓存 SDK targets 的 `ZipDirectory SourceDirectory="$(OutputPath)"`：Debug 构建的 PDB、残留文件、甚至本地临时文件都会进包；`RemoveDir`+`MakeDir` 每次都清空 `cipx/`（同 targets）。发布质量完全依赖"构建前目录是干净的"这一口头约定。
-6. **[中] 五位内部版号是"特性也是分发陷阱"**——`EveningSelfStudyClock.csproj:37-41` 明说五位号会被 ClassIsland 更新检查的 `Version.TryParse` 跳过。设计意图是让内部包流不出去，但默认 `CreateCipx=true`（`:7`）意味着**任何人 clone 后 `dotnet build` 得到的第一个 cipx 就是五位号开发包**；它一旦被分发，用户永远收不到更新提示（因为每次新版本仍是五位号，旧包也解析不出来）。缺少把开发包与 `-p:DevBuild=0` 正式包区分开的文件名/目录标记。
+6. **[中] 五位内部版号是"特性也是分发陷阱"**——`LargeScreenClock.csproj:37-41` 明说五位号会被 ClassIsland 更新检查的 `Version.TryParse` 跳过。设计意图是让内部包流不出去，但默认 `CreateCipx=true`（`:7`）意味着**任何人 clone 后 `dotnet build` 得到的第一个 cipx 就是五位号开发包**；它一旦被分发，用户永远收不到更新提示（因为每次新版本仍是五位号，旧包也解析不出来）。缺少把开发包与 `-p:DevBuild=0` 正式包区分开的文件名/目录标记。
 7. **[中] 模糊半径换算只用宽度比，并且会被静默截断**——`Models\BackgroundImageMap.cs:106-111` 返回 `imageSize.Width / dest.Width`，文档却说"必须按实际落位算"；`Stretch` 模式下 `sx≠sy`，纵向误差没有体现。另 `Models\BackdropImageSet.cs:141` 把结果硬钳到 `StackBlur.MaxRadius = 88`，极端长条图的用户滑块值（0~64，`Settings\SettingsPage.axaml:513`）与实际模糊半径脱钩，用户在界面上看不出这件事。
 8. **[低] 半径取整为 0 时仍返回"模糊位图"，磨砂档会露出清晰图**——`Models\BackdropImageSet.cs:203` 在 `radius < 1` 时直接返回，但 `BakeBlur` 已经把这张未模糊的副本赋给 `set.Blur`（`:158-162`）；`Views\BackdropLayer.cs:232` 的 `HasBlurredBackdrop` 只看 `Blur is not null` → 玻璃画的是"清晰图的裁切"，`Views\ClockSurface.axaml.cs:731-735` 也会据此给关于窗口加 `BlurEffect`。触发条件：小图 + 小半径（`ImagePixelsPerViewportPixel` 小于 1 时）。
 9. **[低] `BackdropLayer` 的字段默认值与设置的默认值不一致**——`Views\BackdropLayer.cs:53` `_refraction = 55`，而 `Models\PluginSettings.cs:53` `_glassRefraction = 50`。首次 `Apply` 之前（或预览控件刚建、还没套设置的那几帧）玻璃参数偏一档。同类小漂移：`Views\BackdropLayer.cs:51-54` 的 `_glassOpacity 35 / _blurRadius 24 / _frost 45` 与设置默认一致，只有 refraction 不同，更像手改后忘了同步。

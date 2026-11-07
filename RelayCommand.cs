@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Input;
 
-namespace EveningSelfStudyClock;
+namespace LargeScreenClock;
 
 /// <summary>
 /// 极简命令封装：把无参 Action 包装成 ICommand（设置页按钮、托盘菜单项等 UI 命令共用）。

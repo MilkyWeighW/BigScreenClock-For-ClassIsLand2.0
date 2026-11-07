@@ -4,12 +4,12 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Services;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.ViewModels;
+using LargeScreenClock.Models;
+using LargeScreenClock.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace EveningSelfStudyClock.Services;
+namespace LargeScreenClock.Services;
 
 /// <summary>
 /// CI 托盘右键菜单加「进入大屏时钟」入口。

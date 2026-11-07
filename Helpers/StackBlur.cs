@@ -1,14 +1,14 @@
-namespace EveningSelfStudyClock.Helpers;
+namespace LargeScreenClock.Helpers;
 
 /// <summary>
 /// Stack Blur —— 用三角形权重 + 滑动窗口逼近高斯模糊，每像素 O(1)，一遍就够（不用多遍叠加）。
 /// 移植自 Mario Klingemann 的 Stack Blur 的 C 版实现（<c>blur_ARGB_8888</c>），
 /// 来源 https://github.com/781015928/BlurLib 的 <c>Library/src/main/jni/stackblur.c</c>。
 ///
-/// 本项目用它把用户选的背景图烘成一张模糊底图给「磨砂玻璃」档当底：
+/// 本项目用它把用户选的壁纸烘成一张模糊底图：
 /// 不能挂 Avalonia 的 <c>BlurEffect</c>，因为那是合成器效果（ClassIsland 有可能是软件渲染后端），
-/// 而且每个面板挂一张全屏大小的位图反而更重。CPU 路径与渲染后端无关，产出一张共享底图，
-/// 绘制时每块玻璃只是一次普通的贴图。
+/// 而且每处都挂一张全屏大小的位图反而更重。CPU 路径与渲染后端无关，产出一张共享底图，
+/// 绘制时只是普通的贴图。
 ///
 /// 像素格式为 32 位 BGRA（走小端时就是 <c>0xAARRGGBB</c>），与 Avalonia 的 <c>Bgra8888</c> 一致；
 /// alpha 通道原样保留。

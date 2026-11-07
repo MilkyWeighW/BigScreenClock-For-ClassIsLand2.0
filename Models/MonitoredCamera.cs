@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 设置里勾选的一个摄像头，存成 <c>设备名|||接口路径</c> 一行。

@@ -6,11 +6,11 @@
 using System.ComponentModel;
 using Avalonia.Media;
 using Avalonia.Styling;
-using EveningSelfStudyClock.Helpers;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.Services;
+using LargeScreenClock.Helpers;
+using LargeScreenClock.Models;
+using LargeScreenClock.Services;
 
-namespace EveningSelfStudyClock.Settings;
+namespace LargeScreenClock.Settings;
 
 public partial class SettingsPage
 {
@@ -44,7 +44,7 @@ public partial class SettingsPage
 
     /// <summary>
     /// 背景总开关：关着一整组背景设置都不生效，外观与没有这套功能时逐像素一致。
-    /// （本轮 axaml 不再暴露这个开关，PluginSettings 里字段保留；液态玻璃实现已整体删除。）
+    /// （本轮 axaml 不再暴露这个开关，PluginSettings 里字段保留。）
     /// 默认关闭 —— 升级上来的配置没这个字段，默认开着会在用户没点过任何东西的情况下换掉他的主题。
     /// </summary>
     public bool BackgroundEnabled
@@ -235,13 +235,6 @@ public partial class SettingsPage
         get => _settings.ShowEarthquakeReminder;
         set { _settings.ShowEarthquakeReminder = value; OnPropertyChanged(nameof(ShowEarthquakeReminder)); }
     }
-
-    /// <summary>
-    /// 「地震预警」插件装了没。没装时地震提醒那一项置灰、下方给出提示——
-    /// 它只是个通知提供方，没装的话这个开关调了也没有用。
-    /// 设置页是每次打开新建的，构造函数里查一次即可。
-    /// </summary>
-    public bool IsEarthquakePluginAvailable => _earthquakePluginAvailable;
 
     /// <summary>没装「地震预警」插件时，在那一项下方给出原因。</summary>
     public bool ShowEarthquakePluginHint => !_earthquakePluginAvailable;

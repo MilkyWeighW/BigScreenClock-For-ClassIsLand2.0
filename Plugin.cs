@@ -3,14 +3,14 @@ using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
 using ClassIsland.Shared.Helpers;
-using EveningSelfStudyClock.Helpers;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.Services;
-using EveningSelfStudyClock.ViewModels;
+using LargeScreenClock.Helpers;
+using LargeScreenClock.Models;
+using LargeScreenClock.Services;
+using LargeScreenClock.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace EveningSelfStudyClock;
+namespace LargeScreenClock;
 
 [PluginEntrance]
 public class Plugin : PluginBase
@@ -42,7 +42,7 @@ public class Plugin : PluginBase
         Settings = ConfigureFileHelper.LoadConfig<PluginSettings>(settingsPath);
 
         // 「正在拖位置/字号」纯界面状态，绝不该跨会话留着：万一哪次拖到一半崩了把它存了下来，
-        // 下次启动玻璃就一直是收起的。这里强制归零。
+        // 下次启动布局就一直是冻结的。这里强制归零。
         Settings.AdjustingLayout = false;
 
         // 组件布局按清单补齐：老配置里没有「组件」这一节，升级上来后设置页与组件壳都能直接读到默认值
@@ -88,6 +88,6 @@ public class Plugin : PluginBase
         services.AddHostedService<AutoTriggerService>();
         services.AddHostedService<TrayMenuService>();
 
-        services.AddSettingsPage<EveningSelfStudyClock.Settings.SettingsPage>();
+        services.AddSettingsPage<LargeScreenClock.Settings.SettingsPage>();
     }
 }

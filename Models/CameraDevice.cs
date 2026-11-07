@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 一个摄像头设备。

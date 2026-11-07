@@ -1,15 +1,15 @@
 // ===== SettingsPage 拆分之一：背景（壁纸 / 纯色 / 自定义图片） =====
 // 职责：背景类型档位（提取当前壁纸 / 纯色 / 自定义图片）与三种类型的行可见性、
 //       壁纸的景深放大与模糊半径、自定义图片的选择/清除/提示文案与填充方式、背景明暗遮罩。
-//       成员与逻辑从原 SettingsPage.axaml.cs 原样搬移；液态玻璃那一组档位与旋钮已随玻璃实现一起删除。
+//       成员与逻辑从原 SettingsPage.axaml.cs 原样搬移。
 // 注意：纯色背景的 ColorPicker 颜色成员（BackgroundColorValue / BackgroundColorBrush / BackgroundColorHex）
 //       在 SettingsPage.Appearance.cs 里，与其它颜色行共用同一套 hex 存取。
 
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
-using EveningSelfStudyClock.Models;
+using LargeScreenClock.Models;
 
-namespace EveningSelfStudyClock.Settings;
+namespace LargeScreenClock.Settings;
 
 public partial class SettingsPage
 {

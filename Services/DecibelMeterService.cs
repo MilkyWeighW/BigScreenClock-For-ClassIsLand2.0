@@ -2,11 +2,11 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.NoiseDetection;
+using LargeScreenClock.Models;
+using LargeScreenClock.NoiseDetection;
 using NAudio.Wave;
 
-namespace EveningSelfStudyClock.Services;
+namespace LargeScreenClock.Services;
 
 /// <summary>持续事件已触发（后台音频线程引发，调用方需自行调度到 UI 线程）。</summary>
 public sealed class NoiseEventRaisedEventArgs : EventArgs
@@ -41,8 +41,6 @@ public class DecibelMeterService : INotifyPropertyChanged, IDisposable
     /// <summary>监控代次：每次 <see cref="StopMonitoring"/> 自增。已经排进 UI 队列的看门狗重启
     /// 一旦发现代次变了就放弃执行，保证「用户关掉监控之后，绝不因为一个迟到的排队动作把麦克风又打开」。</summary>
     private int _monitorGeneration;
-    private double _currentRms;
-    private int _displayLevel; // 0-100 正数显示
     private string _noiseLevelText = "等待检测...";
     private double _noiseLevelProgress;
     private bool _isMonitoring;
@@ -71,21 +69,6 @@ public class DecibelMeterService : INotifyPropertyChanged, IDisposable
 
     /// <summary>持续事件（一般/吵闹）已触发。Level 取值 Normal 或 Noisy。</summary>
     public event EventHandler<NoiseEventRaisedEventArgs>? NoiseEventRaised;
-
-    public double CurrentRms
-    {
-        get => _currentRms;
-        private set { _currentRms = value; OnPropertyChanged(); }
-    }
-
-    /// <summary>
-    /// 正数音量级别 0-100（方便阅读）
-    /// </summary>
-    public int DisplayLevel
-    {
-        get => _displayLevel;
-        private set { _displayLevel = value; OnPropertyChanged(); }
-    }
 
     public string NoiseLevelText
     {

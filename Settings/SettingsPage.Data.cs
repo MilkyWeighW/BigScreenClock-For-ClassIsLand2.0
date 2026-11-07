@@ -8,12 +8,12 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Windows.Input;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.Services;
-using EveningSelfStudyClock.ViewModels;
+using LargeScreenClock.Models;
+using LargeScreenClock.Services;
+using LargeScreenClock.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace EveningSelfStudyClock.Settings;
+namespace LargeScreenClock.Settings;
 
 public partial class SettingsPage
 {
@@ -251,8 +251,6 @@ public partial class SettingsPage
     // 低值区（0.04~0.14）在线性滑块上挤成一团，对数刻度才能精细拖动。
     // 递增联动：安静 < 良好 < 一般 < 吵闹 必须依次递增——后一级滑块的最小值
     // 就是前一级的当前值（对数刻度），保证永远有序。
-    private const double ThresholdSliderMin = -3.0;
-    private const double ThresholdSliderMax = 0.0;
     private const double ThresholdMin = 0.001;
     private const double ThresholdMax = 1.0;
 

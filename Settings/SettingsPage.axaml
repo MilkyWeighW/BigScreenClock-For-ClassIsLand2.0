@@ -3,8 +3,8 @@
              xmlns:controls1="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core"
              xmlns:controls2="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
              xmlns:cp="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.ColorPicker"
-             xmlns:views="clr-namespace:EveningSelfStudyClock.Views"
-             x:Class="EveningSelfStudyClock.Settings.SettingsPage">
+             xmlns:views="clr-namespace:LargeScreenClock.Views"
+             x:Class="LargeScreenClock.Settings.SettingsPage">
 
     <!-- 页面骨架：顶部 TabControl 五页签（组件 / 显示内容 / 音量与记录 / 外观 / 运行），
          每个页签内是 ScrollViewer + settings-container 堆叠，图标标题 + SettingsExpander 设置行 + Separator 分隔；
@@ -913,7 +913,7 @@
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
-                <TextBlock Text="预览即大屏真身：布局、字号、玻璃与折射效果和全屏时完全一致。"
+                <TextBlock Text="预览即大屏真身：布局、字号与背景效果和全屏时完全一致。"
                            FontSize="12" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
             </StackPanel>

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 
-namespace EveningSelfStudyClock.Services;
+namespace LargeScreenClock.Services;
 
 /// <summary>
 /// 在应用启动时立即捕获 IServiceProvider，供 SettingsPage 等使用。

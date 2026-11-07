@@ -1,7 +1,7 @@
 // ===== SettingsPage 拆分之一：字段、构造与生命周期、右栏实时预览、属性变更通知 =====
 // 职责：唯一的字段声明处、页面构造与 Loaded/Unloaded 订阅配对、「致所有用户的一封信」弹窗时机、
 //       右栏实时预览的尺寸与防抖刷新、INotifyPropertyChanged 的通知出口。
-//       其余职责见同目录：SettingsPage.Appearance.cs（主题与外观）、SettingsPage.Background.cs（背景图与玻璃）、
+//       其余职责见同目录：SettingsPage.Appearance.cs（主题与外观）、SettingsPage.Background.cs（背景图）、
 //       SettingsPage.Layout.cs（字号与位置）、SettingsPage.Data.cs（课程/摄像头/分贝与记录参数）。
 
 using System.Collections.ObjectModel;
@@ -21,14 +21,14 @@ using Avalonia.VisualTree;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
-using EveningSelfStudyClock.Helpers;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.Services;
-using EveningSelfStudyClock.ViewModels;
-using EveningSelfStudyClock.Views;
+using LargeScreenClock.Helpers;
+using LargeScreenClock.Models;
+using LargeScreenClock.Services;
+using LargeScreenClock.ViewModels;
+using LargeScreenClock.Views;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace EveningSelfStudyClock.Settings;
+namespace LargeScreenClock.Settings;
 
 [SettingsPageInfo("com.bigscreen.clock.settings", "大屏时钟", SettingsPageCategory.External)]
 // 全宽页：不加这个，CI 会把页面标题限制在 960 宽并居中，窗口一变大标题就往中间跑，

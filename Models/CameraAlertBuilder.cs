@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 摄像头占用 → 预警条目。纯函数（数据源是 <c>CameraActivityService</c>，这里不碰 COM），

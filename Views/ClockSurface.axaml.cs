@@ -9,11 +9,11 @@ using Avalonia.Media.Imaging;
 using Avalonia.Media.Transformation;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using EveningSelfStudyClock.Helpers;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.ViewModels;
+using LargeScreenClock.Helpers;
+using LargeScreenClock.Models;
+using LargeScreenClock.ViewModels;
 
-namespace EveningSelfStudyClock.Views;
+namespace LargeScreenClock.Views;
 
 /// <summary>
 /// 大屏时钟的全部内容。全屏窗口（<see cref="FullScreenClockWindow"/>）与设置页的预览放的都是这一份，
@@ -170,7 +170,7 @@ public partial class ClockSurface : UserControl
             return;
         }
 
-        // 预览里的假内容跟着这两项开关走；它们不进玻璃，不用重烘
+        // 预览里的假内容跟着这两项开关走；不涉及背景层，不用重绘背景
         if (e.PropertyName is nameof(PluginSettings.ShowNoisyCounter)
             or nameof(PluginSettings.ShowCourseInfo))
         {
@@ -458,7 +458,7 @@ public partial class ClockSurface : UserControl
             ApplyBodyPositions();
         }
 
-        // 换主题 / 自动配色下换背景色 → 玻璃的底色、描边、留白色整批跟着变
+        // 换主题 / 自动配色下换背景色 → 背景底色、明暗遮罩跟着变
         if (e.PropertyName is nameof(FullScreenClockViewModel.Chrome)
             or nameof(FullScreenClockViewModel.BackgroundColor))
         {
@@ -545,7 +545,7 @@ public partial class ClockSurface : UserControl
     }
 
     /// <summary>
-    /// 地震预警那层「整屏压色」：磨砂子系统已经删掉，这里改用一条半透明底色压暗/压亮整屏，
+    /// 地震预警那层「整屏压色」：用一条半透明底色压暗/压亮整屏，
     /// 卡片自己的底色再叠一层，保证正中那张卡片跳得出来。
     /// QuakeVeil 是兜底：近乎不透明，把别的都盖住。
     /// </summary>
@@ -564,12 +564,6 @@ public partial class ClockSurface : UserControl
         QuakeVeil.Background = new SolidColorBrush(light
             ? Color.FromArgb(0xE8, 0xFF, 0xFF, 0xFF)
             : Color.FromArgb(0xE8, 0x08, 0x08, 0x0C));
-    }
-
-    private static Color ParseColorOrDefault(string? hex, Color fallback)
-    {
-        try { return string.IsNullOrWhiteSpace(hex) ? fallback : Color.Parse(hex); }
-        catch { return fallback; }
     }
 
     /// <summary>
@@ -989,8 +983,6 @@ public partial class ClockSurface : UserControl
 
         var vm = DataContext as FullScreenClockViewModel;
         var settings = Plugin.Settings;
-
-        // 玻璃子系统已删除：这里不再对整面墙做实时模糊，关于窗口直接浮在背景上。
 
         // 窗口底色跟**背景图明暗**走：暗图黑底白字、亮图白底黑字（不是跟界面主题走——
         // 暗色界面压在一张很亮的壁上时，深色方片会突兀得像贴上去的）。

@@ -1,7 +1,7 @@
 using System.Text.Json;
-using EveningSelfStudyClock.Models;
+using LargeScreenClock.Models;
 
-namespace EveningSelfStudyClock.Services;
+namespace LargeScreenClock.Services;
 
 /// <summary>
 /// 从 CI 的 Settings.json 缓存读取天气信息（LastWeatherInfo）。

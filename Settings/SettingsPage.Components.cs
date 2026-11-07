@@ -13,10 +13,10 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using ClassIsland.Core.Controls;
-using EveningSelfStudyClock.Models;
+using LargeScreenClock.Models;
 using FluentAvalonia.UI.Controls;
 
-namespace EveningSelfStudyClock.Settings;
+namespace LargeScreenClock.Settings;
 
 public partial class SettingsPage
 {

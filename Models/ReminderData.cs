@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>左上角提醒面板的显示数据（由 CI 组件配置 + CI 天气缓存组装）。</summary>
 public class ReminderData

@@ -1,7 +1,7 @@
 using System.IO;
 using Avalonia;
 
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 只读文件头，问出图片的**原始**像素尺寸。**纯字节解析，不解码**，也不依赖渲染器。

@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using ClassIsland.Core.Helpers;
 
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 public class PluginSettings : INotifyPropertyChanged
 {
@@ -44,7 +44,7 @@ public class PluginSettings : INotifyPropertyChanged
     private int _appliedPaletteVariant = ClockTheme.VariantUnknown;
     private bool _backgroundEnabled = false;
     private bool _backgroundSectionExpanded;
-    private int _backgroundKind = (int)EveningSelfStudyClock.Models.BackgroundKind.Wallpaper;
+    private int _backgroundKind = (int)LargeScreenClock.Models.BackgroundKind.Wallpaper;
     private int _backgroundThemeMode;
     private string _backgroundImageFile = "";
     private int _backgroundImageStretch;
@@ -171,7 +171,7 @@ public class PluginSettings : INotifyPropertyChanged
     /// 上面 6 个颜色当前是哪个主题那一套（<see cref="ClockTheme.VariantLight"/> / <see cref="ClockTheme.VariantDark"/>）。
     /// 用来判断「生效主题变了没有」：只有变了才换色，否则用户手改的颜色会被反复覆盖。
     /// 初值取「未知」——老配置里没有这个字段，正好用它认出「还没进过主题系统」的配置来做升级迁移
-    /// （见 <see cref="EveningSelfStudyClock.Helpers.ClockThemeApplier.MigrateLegacySettings"/>）。
+    /// （见 <see cref="LargeScreenClock.Helpers.ClockThemeApplier.MigrateLegacySettings"/>）。
     /// </summary>
     public int AppliedPaletteVariant
     {

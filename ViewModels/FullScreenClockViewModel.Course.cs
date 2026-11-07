@@ -1,6 +1,6 @@
 // =============================================================================
 // FullScreenClockViewModel（partial）— 课表加载、课程定位与打铃时间
-// 职责：从 CI 课表文件加载当天时段（LoadTodaySchedule）、给课前预烘用的「下一节目标课」、
+// 职责：从 CI 课表文件加载当天时段（LoadTodaySchedule）、
 // 当前/下一节课程信息与进度、打铃时间换算，以及 CI 上课状态事件的处理（含噪音计数器的换课重置）。
 // 本类按职责拆成 6 个 partial 文件（同一 namespace，均声明 partial class + INotifyPropertyChanged）：
 //   FullScreenClockViewModel.cs                   核心：字段、构造、基础属性、设置变更、主题与外观
@@ -32,14 +32,14 @@ using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Icons;
 using ClassIsland.Core.Models.Components;
 using ClassIsland.Shared.Enums;
-using EveningSelfStudyClock.Helpers;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.NoiseDetection;
-using EveningSelfStudyClock.Services;
-using EveningSelfStudyClock.Views;
+using LargeScreenClock.Helpers;
+using LargeScreenClock.Models;
+using LargeScreenClock.NoiseDetection;
+using LargeScreenClock.Services;
+using LargeScreenClock.Views;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace EveningSelfStudyClock.ViewModels;
+namespace LargeScreenClock.ViewModels;
 
 public partial class FullScreenClockViewModel : INotifyPropertyChanged
 {
@@ -78,33 +78,6 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     {
         get => _courseInfoFontSize;
         set { _courseInfoFontSize = value; OnPropertyChanged(); }
-    }
-
-    /// <summary>CI 的虚拟当前时间（含时间偏移）。课前预烘要跟大屏用同一口钟。</summary>
-    public DateTime VirtualNow => NowVirtual;
-
-    /// <summary>
-    /// 今天还没开始的目标课程里最早的那节的上课时刻；没有目标课、或者正在上的就是目标课，返回 null。
-    /// 课前预烘靠它判断「离点亮就剩两分钟了」。
-    /// 课表按天缓存，跨天才重读（每 20 秒读一遍 Settings.json + 课表太浪费）。
-    /// </summary>
-    public DateTime? GetNextTargetCourseStart()
-    {
-        var now = NowVirtual;
-        // 课表按天缓存，跨天才重读；_scheduleDate 的维护统一收敛在 LoadTodaySchedule 里
-        // （用真实日期 DateTime.Today 比较：LoadTodaySchedule 内部就是按真实星期找课表的）
-        if (_scheduleDate != DateTime.Today)
-        {
-            LoadTodaySchedule();
-        }
-
-        if (_todaySlots.Count == 0) return null;
-
-        var slots = new List<ClassStartSchedule.Slot>(_todaySlots.Count);
-        foreach (var s in _todaySlots)
-            slots.Add(new ClassStartSchedule.Slot(s.Start, s.End, s.IsClass, s.SubjectName, s.SubjectId));
-
-        return ClassStartSchedule.NextTargetStart(slots, _settings.IsTargetCourse, now);
     }
 
     private void LoadTodaySchedule()

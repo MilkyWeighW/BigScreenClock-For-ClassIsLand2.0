@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 大屏背景类型。取值与 <see cref="PluginSettings.BackgroundKind"/> 的整数值一致。

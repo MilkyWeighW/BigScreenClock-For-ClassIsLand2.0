@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>大屏时钟的主题档位（设置项）。</summary>
 public enum ClockThemeMode

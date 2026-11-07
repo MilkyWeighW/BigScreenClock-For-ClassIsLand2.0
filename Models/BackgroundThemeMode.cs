@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 开了背景图之后用的主题档位。**和 <see cref="ClockThemeMode"/> 是两套独立设置**：

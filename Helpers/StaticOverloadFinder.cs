@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace EveningSelfStudyClock.Helpers;
+namespace LargeScreenClock.Helpers;
 
 /// <summary>
 /// 从别的程序集里挑一个公开静态方法：按名字 + 参数个数 + 参数类型，**不按名字直接取**。

@@ -1,11 +1,11 @@
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Shared.Enums;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.ViewModels;
+using LargeScreenClock.Models;
+using LargeScreenClock.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace EveningSelfStudyClock.Services;
+namespace LargeScreenClock.Services;
 
 /// <summary>
 /// 自动触发服务：监听课程事件，在目标课程（如晚自习）时自动显示全屏时钟窗口。
@@ -117,19 +117,4 @@ public class AutoTriggerService : BackgroundService
             }
         }
     }
-
-    /// <summary>
-    /// 手动显示全屏时钟（供自动化/手动调用）
-    /// </summary>
-    public void ManualShow() => _viewModel.Show();
-
-    /// <summary>
-    /// 手动隐藏全屏时钟
-    /// </summary>
-    public void ManualHide() => _viewModel.Hide();
-
-    /// <summary>
-    /// 当前是否正在显示
-    /// </summary>
-    public bool IsShowing => _viewModel.IsWindowVisible;
 }

@@ -1,7 +1,7 @@
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Shared.Enums;
 
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 从 ClassIsland 的课程服务里取「当前这节课」的科目 Id。

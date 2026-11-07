@@ -1,4 +1,4 @@
-namespace EveningSelfStudyClock.Models;
+namespace LargeScreenClock.Models;
 
 /// <summary>
 /// 「触发课程」的匹配规则：**精确匹配**（忽略首尾空白与大小写）。

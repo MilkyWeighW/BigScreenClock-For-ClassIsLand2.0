@@ -32,14 +32,14 @@ using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Icons;
 using ClassIsland.Core.Models.Components;
 using ClassIsland.Shared.Enums;
-using EveningSelfStudyClock.Helpers;
-using EveningSelfStudyClock.Models;
-using EveningSelfStudyClock.NoiseDetection;
-using EveningSelfStudyClock.Services;
-using EveningSelfStudyClock.Views;
+using LargeScreenClock.Helpers;
+using LargeScreenClock.Models;
+using LargeScreenClock.NoiseDetection;
+using LargeScreenClock.Services;
+using LargeScreenClock.Views;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace EveningSelfStudyClock.ViewModels;
+namespace LargeScreenClock.ViewModels;
 
 public partial class FullScreenClockViewModel : INotifyPropertyChanged
 {
@@ -319,7 +319,7 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
         var now = DateTime.Now;
 
         // 跨午夜课表重载：_todaySlots 只由 LoadTodaySchedule 重建，
-        // 原先只有预烘/打铃路径（GetNextTargetCourseStart）会触发 → 过了零点课程/下一节/打铃仍在用昨天的课表。
+        // 原先只有打铃路径会触发 → 过了零点课程/下一节/打铃仍在用昨天的课表。
         // 每秒检查真实日期；_scheduleDate 由 LoadTodaySchedule 自己维护（失败也会置，避免重试风暴）。
         if (_scheduleDate != now.Date) LoadTodaySchedule();
 

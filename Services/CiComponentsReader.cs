@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace EveningSelfStudyClock.Services;
+namespace LargeScreenClock.Services;
 
 /// <summary>
 /// 从 CI 主界面组件的设置对象中提取倒计时/文本框数据。

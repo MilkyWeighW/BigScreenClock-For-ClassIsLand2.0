@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls1="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core"
-        x:Class="EveningSelfStudyClock.Views.AboutPopupWindow"
+        x:Class="LargeScreenClock.Views.AboutPopupWindow"
         Title="关于 大屏时钟"
         Width="460" Height="262"
         SystemDecorations="None"
@@ -32,7 +32,7 @@
                 <TextBlock x:Name="TitleText" Text="大屏时钟" FontSize="22" FontWeight="Bold" Foreground="#ffffff"
                            VerticalAlignment="Center"/>
             </StackPanel>
-            <TextBlock x:Name="AuthorText" Text="制作者：sokumei" FontSize="15" Foreground="#ccffffff"
+            <TextBlock x:Name="AuthorText" Text="制作者：sokumei、MilkyWeighW" FontSize="15" Foreground="#ccffffff"
                        HorizontalAlignment="Center"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
                 <TextBlock x:Name="VersionNumberText" FontSize="15" Foreground="#ffffff"

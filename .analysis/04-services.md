@@ -162,7 +162,7 @@
 
 ### 4.2 直接读 CI 数据目录（不经 API）
 
-`CiDataDir = Path.GetFullPath(Path.Combine(Plugin.ConfigFolder!, "..", "..", ".."))`（`ViewModels/FullScreenClockViewModel.cs:1409`，`Services` 无独立计算），即 `Plugin.ConfigFolder`（`.../ClassIsland/Plugins/EveningSelfStudyClock`）向上三级。
+`CiDataDir = Path.GetFullPath(Path.Combine(Plugin.ConfigFolder!, "..", "..", ".."))`（`ViewModels/FullScreenClockViewModel.cs:1409`，`Services` 无独立计算），即 `Plugin.ConfigFolder`（`.../ClassIsland/Plugins/LargeScreenClock`）向上三级。
 
 - **课程表**：`CiDataDir/Settings.json` 的 `SelectedProfile`（默认 `"7.json"`）与 `TimeOffsetSeconds`（`ViewModels/FullScreenClockViewModel.cs:1758-1766`）→ `CiDataDir/Profiles/<profile>`（`:1768`），要求存在 `TimeLayouts`/`ClassPlans`/`Subjects`（`:1772-1774`）；按 `DateTime.Now.DayOfWeek` 选第一个 `WeekDay` 匹配、`IsEnabled`、非 `IsOverlay` 的 ClassPlan（`:1776-1792`）；按 TimeLayout 生成 `_todaySlots`，`TimeType == 0` 视为上课，`Classes` 顺序对齐 `SubjectId` → `Subjects.Name`（`:1797-1817`）。
 - **天气**：`CiWeatherReader.ReadLastWeather(CiDataDir/Settings.json)`（`ViewModels/FullScreenClockViewModel.cs:1304`）。

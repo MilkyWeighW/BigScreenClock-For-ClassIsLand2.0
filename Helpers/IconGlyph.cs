@@ -1,6 +1,6 @@
 using ClassIsland.Core.Icons;
 
-namespace EveningSelfStudyClock.Helpers;
+namespace LargeScreenClock.Helpers;
 
 /// <summary>
 /// 矢量图标字形转换：把 Lucide 图标名/枚举换成 ClassIsland 自带的 Fluent 图标字形。

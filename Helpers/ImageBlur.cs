@@ -3,7 +3,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
-namespace EveningSelfStudyClock.Helpers;
+namespace LargeScreenClock.Helpers;
 
 /// <summary>
 /// 位图模糊：把任意 Avalonia <see cref="Bitmap"/> 拷成 BGRA 像素数组，

@@ -5,7 +5,11 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <CreateCipx>true</CreateCipx>
-        <RootNamespace>EveningSelfStudyClock</RootNamespace>
+        <RootNamespace>LargeScreenClock</RootNamespace>
+        <!-- 程序集与插件包对外名（含连字符），命名空间仍是 LargeScreenClock -->
+        <AssemblyName>Large-Screen-Clock</AssemblyName>
+        <!-- SDK 的 CreateCipx 默认用工程名，这里让包名跟随 AssemblyName -->
+        <CipxPackageOutputName>$(AssemblyName).cipx</CipxPackageOutputName>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <!-- 摄像头占用检测：CsWin32 生成的 P/Invoke 要指针，托管回调接口要 COM 互操作 -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -124,7 +128,7 @@
             <_CipxUnused Include="$(OutputPath)NAudio.Asio.dll;
                                  $(OutputPath)NAudio.Midi.dll;
                                  $(OutputPath)NAudio.WinForms.dll" />
-            <_CipxUnused Include="$(OutputPath)EveningSelfStudyClock.pdb"
+            <_CipxUnused Include="$(OutputPath)$(AssemblyName).pdb"
                          Condition="'$(Configuration)' == 'Release'" />
         </ItemGroup>
         <Delete Files="@(_CipxUnused)" ContinueOnError="true" />

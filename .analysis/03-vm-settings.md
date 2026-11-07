@@ -1,4 +1,4 @@
-# 03 · ViewModel 与设置系统分析（大屏时钟 / EveningSelfStudyClock）
+# 03 · ViewModel 与设置系统分析（大屏时钟 / LargeScreenClock）
 
 > 范围：`ViewModels\FullScreenClockViewModel.cs`（2231 行，全项目最大）、`ViewModels\LevelSlotCalculator.cs`、`ViewModels\NoiseLevelSlotItem.cs`、`Models\PluginSettings.cs`（680 行）、`Settings\SettingsPage.axaml(.cs)`（730 / 1515 行）。
 > 为说清调用关系，引用 `Models\ProgressCalculator.cs`、`Models\ClassStartSchedule.cs`、`Models\ReminderData.cs`、`Models\ClockTheme.cs`、`Helpers\ClockThemeApplier.cs`、`NoiseDetection\*.cs`、`Services\DecibelMeterService.cs`、`Services\CiWeatherReader.cs`、`Plugin.cs`、`Views\ClockSurface.axaml(.cs)`。
