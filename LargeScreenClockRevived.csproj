@@ -30,7 +30,10 @@
         <PackageReference Include="ClassIsland.PluginSdk" Version="$(ClassIslandPluginSdkVersion)">
             <ExcludeAssets>runtime; native</ExcludeAssets>
         </PackageReference>
-        <PackageReference Include="NAudio" Version="2.2.1" />
+        <!-- 音频只用 NAudio.Wave 的 WaveInEvent（WinMM 后端）与 WaveFormat（Core），
+             故直接引 NAudio.WinMM（传递依赖 NAudio.Core），不再引入元包 NAudio 及其 Wasapi 后端；
+             Asio/Midi/WinForms 自然也不会被拷进输出目录。 -->
+        <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
         <!-- 摄像头占用检测的 Windows API 声明（PrivateAssets：只在编译期生成代码，不进 cipx） -->
         <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.106" PrivateAssets="all" />
         <!-- 与 ClassIsland 主程序同版本(11.3.17)；运行时主程序已加载该 DLL，故排除 runtime 避免重复打包 -->
@@ -118,16 +121,11 @@
     </Target>
 
     <!--
-      打包瘦身：NAudio 是元包，会把 Asio/Midi/WinForms 三个本插件根本用不到的后端一起拷进来
-      （本插件只用 NAudio.Wave 里的 WaveInEvent，实际需要 NAudio.dll / Core / WinMM / Wasapi）。
-      在 CreateCipx 动手之前把多余文件从输出目录删掉，cipx 里就不会带上；
-      README.md 仍然打进包（插件说明随包走，用户解包就能看到）。
+      打包瘦身：README.md 打进包（插件说明随包走，用户解包就能看到）；Release 下剔掉 pdb。
+      音频只引 NAudio.WinMM + NAudio.Core，输出目录不再出现 NAudio.dll / Wasapi / Asio / Midi / WinForms。
     -->
     <Target Name="TrimCipxPayload" BeforeTargets="CreateCipx">
         <ItemGroup>
-            <_CipxUnused Include="$(OutputPath)NAudio.Asio.dll;
-                                 $(OutputPath)NAudio.Midi.dll;
-                                 $(OutputPath)NAudio.WinForms.dll" />
             <_CipxUnused Include="$(OutputPath)$(AssemblyName).pdb"
                          Condition="'$(Configuration)' == 'Release'" />
         </ItemGroup>
