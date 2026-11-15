@@ -72,6 +72,9 @@ public class Plugin : PluginBase
         // 旧版的 ShowXxx 显示开关一次性搬进组件启用开关（只搬一次，之后以组件设置里的开关为准）
         Settings.MigrateLegacyComponentVisibility();
 
+        // 与 ClassIsland 重合的那几块（天气/日期/倒计时/降雨/文本提醒/提醒面板）对老配置也默认隐藏一次
+        Settings.MigrateOverlappingComponentDefaults();
+
         // 旧配置里「背景」只有「背景图」一个概念：选过图的沿用自定义图片，其余人默认那项就是壁纸
         if (File.Exists(settingsPath) && !string.IsNullOrWhiteSpace(Settings.BackgroundImageFile))
             Settings.BackgroundKind = (int)BackgroundKind.CustomImage;

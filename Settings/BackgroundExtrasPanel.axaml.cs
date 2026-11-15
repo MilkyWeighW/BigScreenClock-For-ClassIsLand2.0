@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using LargeScreenClockRevived.Models;
 using LargeScreenClockRevived.Services;
 using LargeScreenClockRevived.Views;
@@ -30,6 +31,8 @@ public partial class BackgroundExtrasPanel : UserControl
 
         ApplyButton.Click += ApplyUrl_Click;
         UrlBox.LostFocus += (_, _) => ApplyUrl();
+        PickLocalFileButton.Click += PickLocalFile_Click;
+        ClearLocalFileButton.Click += ClearLocalFile_Click;
 
         Loaded += (_, _) =>
         {
@@ -65,6 +68,7 @@ public partial class BackgroundExtrasPanel : UserControl
     {
         if (e.PropertyName is nameof(PluginSettings.BackgroundKind)
             or nameof(PluginSettings.BackgroundWebUrl)
+            or nameof(PluginSettings.BackgroundWebFile)
             or nameof(PluginSettings.BackgroundColor))
             Refresh();
     }
@@ -109,6 +113,13 @@ public partial class BackgroundExtrasPanel : UserControl
         UrlBox.IsEnabled = available;
         ApplyButton.IsEnabled = available;
 
+        // 本地网页行：显示文件名（路径通常很长，摘要只放文件名，完整路径在提示里）
+        var localFile = (settings.BackgroundWebFile ?? "").Trim();
+        PickLocalFileButton.IsEnabled = available;
+        ClearLocalFileButton.IsEnabled = available && localFile.Length > 0;
+        LocalFileSummary.Text = DescribeLocalFile(localFile);
+        LocalFileHint.Text = "本地网页会以 file:// 打开；页面里的 css / js / 图片要和这个 html 放在同一目录（或子目录）并用相对路径，否则只会显示一张空白页。";
+
         if (available)
         {
             var version = WebView2Availability.Version;
@@ -126,6 +137,122 @@ public partial class BackgroundExtrasPanel : UserControl
     }
 
     private void ApplyUrl_Click(object? sender, RoutedEventArgs e) => ApplyUrl();
+
+    /// <summary>本地网页摘要：没有选、选中且存在、选中但文件已经不在了三种说法。</summary>
+    private static string DescribeLocalFile(string path)
+    {
+        if (path.Length == 0) return "本地网页：未选择";
+
+        try
+        {
+            var name = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(name)) name = path;
+            return File.Exists(path)
+                ? "本地网页：" + name + "（优先于上面的地址）"
+                : "本地网页：" + name + "（文件不存在，已回退到上面的地址 / 纯色）";
+        }
+        catch
+        {
+            return "本地网页：" + path;
+        }
+    }
+
+    /// <summary>
+    /// 选择本地 .html。只存绝对路径、不复制文件：网页通常要带同目录的资源，
+    /// 只搬走 html 会让页面变成空白；复制整个目录又会失控，所以维持引用。
+    /// </summary>
+    private async void PickLocalFile_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_settings is null) return;
+
+        try
+        {
+            if (TopLevel.GetTopLevel(this) is not { } top) return;
+
+            var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "选择本地网页",
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("网页文件")
+                    {
+                        Patterns = ["*.html", "*.htm"],
+                    },
+                    // 允许全部文件：有些网页没有扩展名，或用户手写了一个别的后缀
+                    FilePickerFileTypes.All,
+                ],
+            });
+
+            if (files.Count == 0) return;
+
+            var path = files[0].TryGetLocalPath();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                LocalFileHint.Text = "这个位置拿不到本地路径（可能在压缩包里），请先把 html 解压到磁盘再选。";
+                return;
+            }
+
+            if (!File.Exists(path))
+            {
+                LocalFileHint.Text = "选中的文件已不存在：" + path;
+                return;
+            }
+
+            _settings.BackgroundWebFile = path;
+            NotifyBackgroundChanged("已选择本地网页：" + Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            LocalFileHint.Text = "选择本地网页失败：" + ex.Message;
+        }
+    }
+
+    /// <summary>清除本地网页：退回用上面的网页地址；地址也为空时大屏保持纯色兜底。</summary>
+    private void ClearLocalFile_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_settings is null) return;
+
+        try
+        {
+            if (string.IsNullOrEmpty(_settings.BackgroundWebFile)) return;
+            _settings.BackgroundWebFile = "";
+            NotifyBackgroundChanged("已清除本地网页，改用上面的网页地址（地址为空时保持纯色）。");
+        }
+        catch (Exception ex)
+        {
+            LocalFileHint.Text = "清除失败：" + ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// 本地网页变更后的统一收尾：立即存盘一次、让挂着的网页窗口重新解析导航目标，再刷新摘要。
+    /// 走 <see cref="WebBackgroundService.Active"/> 是因为面板不知道大屏窗口是否开着；
+    /// 没开时它只是 null，不影响保存。
+    /// </summary>
+    private void NotifyBackgroundChanged(string hint)
+    {
+        try
+        {
+            Plugin.SaveSettings();
+        }
+        catch
+        {
+            // 存盘失败不影响本次生效（设置对象已经改了，防抖存盘还会再试）
+        }
+
+        try
+        {
+            if (_settings is not null) WebBackgroundService.Active?.Sync(_settings);
+        }
+        catch
+        {
+            // 同步失败最多是网页窗口等下一次设置变更再生效
+        }
+
+        Refresh();
+        LocalFileHint.Text = hint;
+    }
 
     /// <summary>
     /// 保存地址：清洗失败就只提示、不改设置；成功写入设置（存盘由插件统一的防抖存盘负责）。
@@ -147,6 +274,9 @@ public partial class BackgroundExtrasPanel : UserControl
         {
             _settings.BackgroundWebUrl = normalized;
             UrlHint.Text = "已保存：" + normalized;
+
+            // 地址立即生效：网页窗口若正开着就重新解析导航目标（本地网页仍优先）
+            try { WebBackgroundService.Active?.Sync(_settings); } catch { }
         }
         catch (Exception ex)
         {

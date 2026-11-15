@@ -189,9 +189,8 @@ public partial class ClockSurface : UserControl
         // 贴纸：换图/换填充方式/增删实例后重新同步（换图要重新解码，删实例要摘掉组件壳）。
         // 实例内部的 PropertyChanged 与集合变更都会被 PluginSettings 冒泡成一次 ImageInstances 通知，
         // 这里接住就够了，不用自己再挂一遍集合事件。
-        if (e.PropertyName is nameof(PluginSettings.ImageInstances)
-            or nameof(PluginSettings.CustomImageFile)
-            or nameof(PluginSettings.CustomImageStretch))
+        // 旧版单图字段已不再参与渲染（见 ResolveStickerSources），这里也就没必要再听它。
+        if (e.PropertyName is nameof(PluginSettings.ImageInstances))
         {
             SyncStickerHosts();
             ApplyComponentVisibility();
@@ -381,11 +380,11 @@ public partial class ClockSurface : UserControl
 
     // ===== 贴纸（自定义图片组件，1.4.0.0 起支持多个实例）=====
     //
-    // 1.3.1.1 只有一个固定 ImageHost + 一张 CustomImageFile。1.4.0.0 改成：
+    // 1.3.1.1 只有一个固定 ImageHost + 一张 CustomImageFile。1.4.0.0 起**只认贴纸实例**：
     //   * 每个 Plugin.Settings.ImageInstances 里的实例生成一个 ComponentHost（自带 ComponentId =
     //     "image:<实例id>"），每个实例因此有自己的布局键，位置/大小/不透明度互不影响；
-    //   * 老配置（迁移还没跑、或贴纸列表为空但旧单图字段有值）仍按单图渲染，id 用旧的 "image"，
-    //     外观与 1.3.1.1 逐像素一致 —— 回退/降级都不会丢图；
+    //   * 旧的单图字段（CustomImageFile）不再参与大屏渲染：老配置在启动时已经迁移成一个贴纸实例，
+    //     继续读旧字段会让「贴纸」与「自定义图片」两份逻辑同时画同一张图（用户实测就是两张图重叠）；
     //   * 位图按**文件路径**缓存：同一张图被多个实例引用时只解码一份；实例删掉/换图后，
     //     没有被任何实例引用的位图延后一帧释放（渲染线程可能还在读）。
 
@@ -416,28 +415,17 @@ public partial class ClockSurface : UserControl
     };
 
     /// <summary>
-    /// 算出这一刻该画哪些图：优先贴纸实例列表，列表为空时回退到旧版单图字段
-    /// （迁移没跑、或用户把实例全删了但还有个老 CustomImageFile —— 不回退会“图凭空消失”）。
+    /// 算出这一刻该画哪些图：**只按贴纸实例列表**。
+    /// 旧版单图字段不再参与渲染 —— 1.4.0.0 启动时已把它迁移成一个贴纸实例；
+    /// 两边都读会让同一张图被画两遍（贴纸叠在旧的「自定义图片」组件上，用户看到的就是两张图重叠）。
     /// </summary>
     private List<(string ComponentId, string? Path, int Stretch)> ResolveStickerSources()
     {
         var sources = new List<(string, string?, int)>();
         if (Plugin.Settings is not { } settings) return sources;
 
-        var instances = settings.ImageInstances;
-        if (instances is { Count: > 0 })
-        {
-            foreach (var instance in instances)
-                sources.Add((instance.ComponentId, ComponentImageStore.ResolvePath(instance.File), instance.Stretch));
-            return sources;
-        }
-
-        if (!string.IsNullOrWhiteSpace(settings.CustomImageFile))
-        {
-            sources.Add((ComponentIds.LegacyImage,
-                ComponentImageStore.ResolvePath(settings.CustomImageFile),
-                settings.CustomImageStretch));
-        }
+        foreach (var instance in settings.ImageInstances)
+            sources.Add((instance.ComponentId, ComponentImageStore.ResolvePath(instance.File), instance.Stretch));
 
         return sources;
     }

@@ -249,16 +249,17 @@ public static class ComponentCatalog
         // 老配置里已经显式开着的仍按用户的设置显示（迁移不覆盖 Enabled，只影响新补出来的布局）。
         new("date", "日期", "右上角的日期与副标题。", "\uE304", DefaultEnabled: false),
         new("weather", "天气", "顶部左侧的天气图标、气温与字幕。", "\uF467", DefaultEnabled: false),
-        new("rainMerge", "降雨提醒（顶部）", "顶部那行里合并显示的「多久下雨」。", "\uF453"),
+        new("rainMerge", "降雨提醒（顶部）", "顶部那行里合并显示的「多久下雨」。", "\uF453", DefaultEnabled: false),
         new("countdownMerge", "倒计时（顶部）", "顶部那行里合并显示的倒计时。", "\uE161", DefaultEnabled: false),
-        new("textMerge", "文本提醒（顶部）", "顶部那行里合并显示的文本组件内容。", "\uE3E4"),
+        new("textMerge", "文本提醒（顶部）", "顶部那行里合并显示的文本组件内容。", "\uE3E4", DefaultEnabled: false),
         new("alertDetail", "预警详情", "顶部中间横向滚动的预警详情（鼠标悬停或点击预警时出现）。", "\uE9E4"),
-        new("reminderPanel", "提醒面板", "左上角整块提醒面板（天气、预警、倒计时、文本、降雨）。", "\uE025"),
+        new("reminderPanel", "提醒面板", "左上角整块提醒面板（天气、预警、倒计时、文本、降雨）。", "\uE025", DefaultEnabled: false),
         new("volume", "教室音量", "音量标题、刻度条与五档文字。", "\uF00D"),
         new("counter", "吵闹计数", "左下角的吵闹次数与「正在记录」提示。", "\uE3E0"),
         new("course", "课程信息", "底部居中的当前课程与打铃时间。", "\uE215"),
         new("progress", "课程进度条", "屏幕最底部的整宽进度带。", "\uE5DF"),
-        new("image", "自定义图片", "自选的图片（班徽、logo 等），大小、位置、不透明度与其它组件一样调。", "\uE9B2"),
+        // 「自定义图片」不再作为静态组件存在：1.4.0.0 起统一由贴纸实例（image:<id>）承载，
+        // 每个实例一张图、一份布局。旧配置的单图字段会在启动时迁移进第一个实例。
         new("earthquake", "地震警报", "地震预警插件报警时整屏正中的提示块。", "\uE7C5"),
     };
 

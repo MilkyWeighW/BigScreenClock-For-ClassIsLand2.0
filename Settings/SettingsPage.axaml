@@ -175,35 +175,7 @@
                                         </StackPanel>
                                     </controls2:SettingsExpanderItem.Footer>
                                 </controls2:SettingsExpanderItem>
-                                <controls2:SettingsExpanderItem Content="图片"
-                                                                Description="{Binding CustomImageHint}"
-                                                                IconSource="{controls1:FluentIconSource &#xE9B2;}"
-                                    IsVisible="{Binding IsImageSelected}">
-                                    <controls2:SettingsExpanderItem.Footer>
-                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding CustomImageSummary}" FontSize="12"
-                                                       MaxWidth="240" TextTrimming="CharacterEllipsis"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                            <Button Content="选择图片" FontSize="13" Padding="12,5" CornerRadius="6"
-                                                    Cursor="Hand" Click="PickCustomImage_Click"/>
-                                            <Button Content="清除" FontSize="13" Padding="12,5" CornerRadius="6"
-                                                    Cursor="Hand" Click="ClearCustomImage_Click"/>
-                                        </StackPanel>
-                                    </controls2:SettingsExpanderItem.Footer>
-                                </controls2:SettingsExpanderItem>
 
-                                <controls2:SettingsExpanderItem Content="图片填充方式"
-                                    IsVisible="{Binding IsImageSelected}">
-                                    <controls2:SettingsExpanderItem.Footer>
-                                        <ComboBox SelectedIndex="{Binding CustomImageStretchIndex, Mode=TwoWay}"
-                                                  Width="140" VerticalAlignment="Center">
-                                            <ComboBoxItem Content="完整显示"/>
-                                            <ComboBoxItem Content="铺满裁切"/>
-                                            <ComboBoxItem Content="拉伸"/>
-                                        </ComboBox>
-                                    </controls2:SettingsExpanderItem.Footer>
-                                </controls2:SettingsExpanderItem>
                                 <controls2:SettingsExpanderItem Content="时钟字号"
                                     IsVisible="{Binding IsClockSelected}">
                                     <controls2:SettingsExpanderItem.Footer>

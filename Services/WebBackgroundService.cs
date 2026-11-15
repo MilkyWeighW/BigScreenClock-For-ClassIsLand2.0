@@ -1,4 +1,6 @@
 using System;
+using System.ComponentModel;
+using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -35,8 +37,18 @@ public sealed class WebBackgroundService
     /// <summary>跟着大屏窗口挪位置的轮询间隔。比逐帧便宜，拖动窗口时也够跟手。</summary>
     private static readonly TimeSpan FollowInterval = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>
+    /// 当前挂着的服务实例（同一时刻只有一个大屏窗口）。设置页面板改完本地网页/地址后
+    /// 可以直接找它同步一次，不用为了「立刻生效」再加一层跨模块接线。
+    /// </summary>
+    public static WebBackgroundService? Active { get; private set; }
+
     private Window? _clockWindow;
     private PluginSettings? _settings;
+    private PluginSettings? _hookedSettings;
+
+    /// <summary>上一次真正导航到的地址：位置跟随/可见性同步都会反复调 Sync，地址没变不重载。</summary>
+    private string? _currentNavigationUrl;
     private WebBackgroundWindow? _webWindow;
     private DispatcherTimer? _followTimer;
     private DispatcherTimer? _lingerTimer;
@@ -54,6 +66,7 @@ public sealed class WebBackgroundService
             Detach();
             _clockWindow = clockWindow;
             _attached = true;
+            Active = this;
 
             clockWindow.PropertyChanged += OnClockWindowPropertyChanged;
             clockWindow.Closed += OnClockWindowClosed;
@@ -74,6 +87,14 @@ public sealed class WebBackgroundService
     public void Detach()
     {
         _attached = false;
+
+        if (ReferenceEquals(Active, this)) Active = null;
+
+        if (_hookedSettings is not null)
+        {
+            try { _hookedSettings.PropertyChanged -= OnSettingsPropertyChanged; } catch { }
+            _hookedSettings = null;
+        }
 
         try
         {
@@ -105,6 +126,7 @@ public sealed class WebBackgroundService
     public void Sync(PluginSettings settings)
     {
         _settings = settings;
+        HookSettings(settings);
         try
         {
             SyncCore(settings);
@@ -112,6 +134,38 @@ public sealed class WebBackgroundService
         catch
         {
             // 同步失败最多是网页不显示
+        }
+    }
+
+    /// <summary>
+    /// 服务自己盯住设置：面板/窗口任何一处改了背景相关项，这里都能立刻重算导航目标。
+    /// 这样「改本地网页 / 改地址」不依赖调用方记得再调一次 Sync，少一条容易漏的接线。
+    /// </summary>
+    private void HookSettings(PluginSettings settings)
+    {
+        if (ReferenceEquals(_hookedSettings, settings)) return;
+
+        try
+        {
+            if (_hookedSettings is not null) _hookedSettings.PropertyChanged -= OnSettingsPropertyChanged;
+        }
+        catch
+        {
+            // 旧设置对象可能已销毁
+        }
+
+        _hookedSettings = settings;
+        _hookedSettings.PropertyChanged += OnSettingsPropertyChanged;
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PluginSettings.BackgroundKind)
+            or nameof(PluginSettings.BackgroundWebUrl)
+            or nameof(PluginSettings.BackgroundWebFile)
+            or nameof(PluginSettings.BackgroundColor))
+        {
+            if (_hookedSettings is { } settings) Sync(settings);
         }
     }
 
@@ -138,7 +192,7 @@ public sealed class WebBackgroundService
 
         SyncBounds();
         ShowWindow();
-        _webWindow?.Navigate(settings.BackgroundWebUrl);
+        NavigateIfNeeded(settings);
         StartFollow();
     }
 
@@ -221,6 +275,8 @@ public sealed class WebBackgroundService
     {
         var window = _webWindow;
         _webWindow = null;
+        // 窗口连 WebView2 一起销毁了：下次重建必须重新导航，不能因为地址没变就跳过
+        _currentNavigationUrl = null;
         if (window is null) return;
 
         try
@@ -315,6 +371,58 @@ public sealed class WebBackgroundService
         {
             // Z 序调整失败不影响显示（topmost 关系已经保证大屏在上）
         }
+    }
+
+    /// <summary>
+    /// 解析「现在到底该导航到哪」：本地 HTML 优先（file:///），否则用网页地址。
+    ///
+    /// 本地文件优先的理由：用户既然明确挑了 html，就是要看它；文件被删/挪走后
+    /// 再静默回退到上面的网页地址，两者都没了才留空白兜底色（不弹框）。
+    /// </summary>
+    private static string ResolveNavigationUrl(PluginSettings settings)
+    {
+        var localFile = (settings.BackgroundWebFile ?? "").Trim();
+        if (localFile.Length > 0)
+        {
+            try
+            {
+                // 统一绝对化：面板存的是绝对路径，但手改 Settings.json 可能是相对路径，
+                // 直接交给 Uri 会抛（相对地址不算 Absolute Uri）。
+                var fullPath = Path.GetFullPath(localFile);
+                if (File.Exists(fullPath))
+                {
+                    // Windows 绝对路径在这里转成 file:///C:/...（空格、中文会被正确转义）。
+                    // 不要直接扔给 NormalizeUrl 让它猜协议：C: 开头的路径它认不出来。
+                    return new Uri(fullPath).AbsoluteUri;
+                }
+            }
+            catch
+            {
+                // 路径非法/过长（超 MAX_PATH 之类）：当作没有本地文件
+            }
+        }
+
+        return WebViewHost.NormalizeUrl(settings.BackgroundWebUrl);
+    }
+
+    /// <summary>
+    /// 地址变了才导航。Sync 会被位置跟随时钟、可见性变化、设置变更反复调用，
+    /// 每次都 Navigation 会让网页整页重载（闪白 + 掉帧），所以按最终 URL 去重。
+    /// </summary>
+    private void NavigateIfNeeded(PluginSettings settings)
+    {
+        var url = ResolveNavigationUrl(settings);
+        if (url.Length == 0)
+        {
+            // 没有任何可用源（本地文件不存在且地址为空/非法）：保持兜底纯色
+            _currentNavigationUrl = null;
+            return;
+        }
+
+        if (string.Equals(url, _currentNavigationUrl, StringComparison.Ordinal)) return;
+
+        _currentNavigationUrl = url;
+        _webWindow?.Navigate(url);
     }
 
     private static Color ParseColorOrDefault(string? hex)

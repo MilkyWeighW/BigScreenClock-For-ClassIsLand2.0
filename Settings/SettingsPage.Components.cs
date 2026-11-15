@@ -23,7 +23,7 @@ namespace LargeScreenClockRevived.Settings;
 public partial class SettingsPage
 {
     /// <summary>
-    /// 「组件」页签里的全部静态组件（14 个，顺序 = <see cref="ComponentCatalog"/> 清单顺序；贴纸实例另外追加）。
+    /// 「组件」页签里的全部静态组件（13 个，顺序 = <see cref="ComponentCatalog"/> 清单顺序；贴纸实例另外追加）。
     /// 页面每次打开都新建，行也是一次性建好；之后只有 Layout 里的属性会变。
     /// </summary>
     public ObservableCollection<ComponentSettingItem> ComponentItems { get; } = new();
@@ -145,20 +145,15 @@ public partial class SettingsPage
     }
 
     /// <summary>
-    /// 静态组件行。贴纸实例已经存在时跳过旧版「自定义图片」（image）那一行：
-    /// 1.4.0.0 起图片由贴纸实例承载，旧的单图字段已迁移进实例，这一行既没有图可显示、
-    /// 再选图也只会写回旧字段（大屏不再读它），留在条上只会让人困惑。
-    /// 它的布局对象仍保留在设置里，不会因为这里不显示而丢失。
+    /// 静态组件行，直接照 <see cref="ComponentCatalog"/> 清单来。
+    /// 旧版单图「自定义图片」已经从清单里删掉（图片统一由贴纸实例承载），
+    /// 所以这里不再需要为它写任何「隐藏/跳过」的特例。
     /// </summary>
     private void AddCatalogComponentItems()
     {
-        var hasStickers = _settings.ImageInstances.Count > 0;
-
         for (var i = 0; i < ComponentCatalog.All.Count; i++)
         {
             var descriptor = ComponentCatalog.All[i];
-            if (hasStickers && string.Equals(descriptor.Id, ComponentIds.LegacyImage, StringComparison.Ordinal))
-                continue;
             ComponentItems.Add(new ComponentSettingItem(descriptor, _settings.GetComponentLayout(descriptor.Id), i));
         }
     }
@@ -205,32 +200,6 @@ public partial class SettingsPage
         }
         foreach (var item in ComponentItems.Where(IsStickerItem).ToList())
             ComponentItems.Remove(item);
-
-        // 旧版「自定义图片」行的去留跟着贴纸列表走：有实例时它已被实例取代（藏起来），
-        // 实例全删光时再放回来 —— 它的布局对象一直在设置里，用户随时能把那张图加回来。
-        var hasImageRow = ComponentItems.Any(item =>
-            string.Equals(item.Descriptor.Id, ComponentIds.LegacyImage, StringComparison.Ordinal));
-        if (_settings.ImageInstances.Count > 0)
-        {
-            if (hasImageRow)
-            {
-                var legacy = ComponentItems.First(item =>
-                    string.Equals(item.Descriptor.Id, ComponentIds.LegacyImage, StringComparison.Ordinal));
-                legacy.Layout.PropertyChanged -= OnComponentLayoutChanged;
-                legacy.DetachLayout();
-                ComponentItems.Remove(legacy);
-            }
-        }
-        else if (!hasImageRow)
-        {
-            var descriptor = ComponentCatalog.All.FirstOrDefault(d =>
-                string.Equals(d.Id, ComponentIds.LegacyImage, StringComparison.Ordinal));
-            if (descriptor is not null)
-            {
-                var index = ComponentCatalog.All.ToList().IndexOf(descriptor);
-                ComponentItems.Add(new ComponentSettingItem(descriptor, _settings.GetComponentLayout(descriptor.Id), index));
-            }
-        }
 
         AddStickerComponentItems();
         if (_componentLayoutsHooked)
@@ -363,7 +332,7 @@ public partial class SettingsPage
     private static int EffectiveOrder(ComponentSettingItem item) => item.Layout.Order ?? item.CatalogIndex;
 
     /// <summary>
-    /// 把 14 个静态组件的 Order 统一写成 0..13（按当前生效顺序；贴纸实例另有自己的布局）。
+    /// 把 13 个静态组件的 Order 统一写成 0..12（按当前生效顺序；贴纸实例另有自己的布局）。
     /// 只有用户点箭头挪动时才调用：平时允许 Order 是 null，省得启动就改一遍设置。
     /// </summary>
     private void NormalizeOrders()
@@ -451,76 +420,6 @@ public partial class SettingsPage
         SelectedComponent = moved;
     }
 
-    // ===== 「自定义图片」组件的选图 =====
-
-    /// <summary>当前图片文件名；没选就是「未选择」。</summary>
-    public string CustomImageSummary
-        => ComponentImageStore.ResolvePath(_settings.CustomImageFile) is null
-            ? "未选择（组件在大屏上隐藏）"
-            : _settings.CustomImageFile;
-
-    public string CustomImageHint { get; private set; } = "选中的图片会复制一份到插件配置目录，原图之后挪走也不影响";
-
-    /// <summary>填充方式：0 完整显示 / 1 铺满裁切 / 2 拉伸。</summary>
-    public int CustomImageStretchIndex
-    {
-        get => _settings.CustomImageStretch;
-        set
-        {
-            if (_settings.CustomImageStretch == value) return;
-            _settings.CustomImageStretch = value;
-            OnPropertyChanged(nameof(CustomImageStretchIndex));
-            SchedulePreviewSync();
-        }
-    }
-
-    private async void PickCustomImage_Click(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (TopLevel.GetTopLevel(this) is not { } top) return;
-
-            var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "选择要显示的图片",
-                AllowMultiple = false,
-                FileTypeFilter =
-                [
-                    new FilePickerFileType("图片")
-                    {
-                        Patterns = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp", "*.gif"],
-                    },
-                ],
-            });
-
-            if (files.Count == 0) return;
-            var source = files[0].TryGetLocalPath();
-            if (string.IsNullOrWhiteSpace(source) || !File.Exists(source)) return;
-
-            ComponentImageStore.Replace(source, _settings);
-            CustomImageHint = $"已导入：{Path.GetFileName(source)}";
-            NotifyCustomImageChanged();
-        }
-        catch (Exception ex)
-        {
-            CustomImageHint = "导入失败：" + ex.Message;
-            OnPropertyChanged(nameof(CustomImageHint));
-        }
-    }
-
-    private void ClearCustomImage_Click(object? sender, RoutedEventArgs e)
-    {
-        ComponentImageStore.Clear(_settings);
-        CustomImageHint = "已清除，组件在大屏上隐藏";
-        NotifyCustomImageChanged();
-    }
-
-    private void NotifyCustomImageChanged()
-    {
-        OnPropertyChanged(nameof(CustomImageSummary));
-        OnPropertyChanged(nameof(CustomImageHint));
-        SchedulePreviewSync();
-    }
 
 }
 

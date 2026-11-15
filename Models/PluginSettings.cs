@@ -410,6 +410,19 @@ public class PluginSettings : INotifyPropertyChanged
         set { _backgroundWebUrl = value ?? ""; OnPropertyChanged(); }
     }
 
+    private string _backgroundWebFile = "";
+
+    /// <summary>
+    /// 本地网页背景（.html/.htm 的绝对路径，空 = 不用本地文件）。
+    /// 存绝对路径而不是复制进配置目录：网页通常要带同目录的 css/js/图片，只搬 html 会丢资源。
+    /// 有值时优先于 <see cref="BackgroundWebUrl"/>。
+    /// </summary>
+    public string BackgroundWebFile
+    {
+        get => _backgroundWebFile;
+        set { _backgroundWebFile = value ?? ""; OnPropertyChanged(); }
+    }
+
     private bool _followClassIslandAccent = true;
 
     /// <summary>
@@ -952,6 +965,8 @@ public class PluginSettings : INotifyPropertyChanged
                 case nameof(BackgroundDimMigrationVersion):
                 // 贴纸迁移同理：重置后贴纸列表已经清空，再跑一次迁移会把它又补回来。
                 case nameof(StickerMigrationVersion):
+                // 「重合组件默认隐藏」也只在升级时跑一次；重置后的显隐以默认值为准。
+                case nameof(ComponentDefaultsMigrationVersion):
                     continue;
             }
 
@@ -994,6 +1009,42 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     private int _backgroundDimMigrationVersion;
+
+    /// <summary>
+    /// 「与 ClassIsland 重合的组件默认隐藏」迁移版本：0 = 还没套过。
+    ///
+    /// 只改字段默认值只影响新装用户；老配置里这些组件的布局早就存成 Enabled=true 了，
+    /// 升级上来照样显示。用户在 1.4.0.0 验收时明确要求「图里那一块也要隐藏」，
+    /// 所以对老配置补一次：天气 / 日期 / 倒计时 / 降雨 / 文本提醒 / 提醒面板 一次性关掉，
+    /// 用户之后在组件页里想开回来随时可以（迁移只跑一次，不会覆盖之后的手动修改）。
+    /// </summary>
+    public int ComponentDefaultsMigrationVersion
+    {
+        get => _componentDefaultsMigrationVersion;
+        set { _componentDefaultsMigrationVersion = value; OnPropertyChanged(); }
+    }
+
+    private int _componentDefaultsMigrationVersion;
+
+    /// <summary>要默认隐藏的组件（与 CI 主界面/课表栏信息重合，或属于 CI 自带提醒能力）。</summary>
+    private static readonly string[] OverlappingComponentIds =
+    {
+        "weather", "date", "countdownMerge", "rainMerge", "textMerge", "reminderPanel",
+    };
+
+    /// <summary>一次性把这些重合组件关掉（见 <see cref="ComponentDefaultsMigrationVersion"/>）。</summary>
+    public void MigrateOverlappingComponentDefaults()
+    {
+        if (ComponentDefaultsMigrationVersion >= 1) return;
+
+        foreach (var id in OverlappingComponentIds)
+            GetComponentLayout(id).Enabled = false;
+
+        // 旧的单图组件已经并入贴纸实例，布局字典里这一项不再有入口，顺手摘掉。
+        ComponentLayouts.Remove(ComponentIds.LegacyImage);
+
+        ComponentDefaultsMigrationVersion = 1;
+    }
 
     /// <summary>一次性把「从没调过明暗」的老配置补成默认压暗 30%（只补一次，见版本号）。</summary>
     public void MigrateBackgroundDimDefault()

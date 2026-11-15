@@ -42,10 +42,7 @@ public class ComponentHost : ContentControl
     /// <summary>挂着的设置对象（用来听「一键重置把整张布局字典换掉」这种结构性变更）。</summary>
     private PluginSettings? _settings;
 
-    /// <summary>模板根（一层 Grid：材质层在下、内容在上）。</summary>
-    private Grid? _root;
-
-    /// <summary>内容呈现器：量文字外框、挂文字材质都以它为根。</summary>
+    /// <summary>内容呈现器：遍历里面的文字块、套字体与文字材质都以它为根。</summary>
     private ContentPresenter? _presenter;
 
     /// <summary>当前挂着的文字材质层；没有材质时为 null（无材质零开销）。</summary>
@@ -78,7 +75,11 @@ public class ComponentHost : ContentControl
     /// <summary>当前挂着的文字材质层（null = 没有材质；调试/截图时可据此判断走了哪条路径）。</summary>
     public TextMaterialLayer? MaterialLayer => _materialLayer;
 
-    /// <summary>模板：一层 Grid，内容呈现器先放进去；材质层按需插到它**前面**（画在文字下面）。</summary>
+    /// <summary>
+    /// 模板只有一层内容呈现器。
+    /// 文字材质不在这里加任何控件：它是直接改文字字形填充（Foreground/Effect）的，不需要视觉节点，
+    /// 更不会在文字背后垫一块外框薄片。
+    /// </summary>
     private static Control CreateTemplate(ComponentHost host, INameScope scope)
     {
         var presenter = new ContentPresenter { Name = "PART_ContentPresenter" };
@@ -88,12 +89,8 @@ public class ComponentHost : ContentControl
         presenter[!ContentPresenter.VerticalContentAlignmentProperty] =
             host[!VerticalContentAlignmentProperty];
 
-        var root = new Grid();
-        root.Children.Add(presenter);
-
-        host._root = root;
         host._presenter = presenter;
-        return root;
+        return presenter;
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -341,25 +338,21 @@ public class ComponentHost : ContentControl
     // ===== 文字材质 =====
 
     /// <summary>
-    /// 按 <see cref="ComponentLayout.TextMaterial"/> 挂/摘材质层。
-    /// 无材质时把层整个摘掉（不是设透明）：没有额外控件、没有额外的渲染节点，开销为零。
+    /// 按 <see cref="ComponentLayout.TextMaterial"/> 给组件里的文字套「字形材质」。
+    /// <see cref="TextMaterialLayer"/> 不是控件、不加任何视觉节点：它直接改每块文字的
+    /// Foreground（半透明渐变）与 Effect（边缘模糊/投影），所以文字本身像磨砂/液态玻璃，
+    /// 而不是在背后垫一块玻璃。无材质时连这个对象都不建，开销为零。
     /// </summary>
     private void ApplyTextMaterial(ComponentLayout layout)
     {
         var mode = (TextMaterialMode)layout.TextMaterial;
-        if (mode == TextMaterialMode.None || _root is null || _presenter is null)
+        if (mode == TextMaterialMode.None || _presenter is null)
         {
             RemoveMaterialLayer();
             return;
         }
 
-        if (_materialLayer is null)
-        {
-            _materialLayer = new TextMaterialLayer();
-            // 插到内容呈现器前面：材质层画在**文字下面**，字压在薄片上，读起来才有「垫着」的感觉
-            _root.Children.Insert(0, _materialLayer);
-        }
-
+        _materialLayer ??= new TextMaterialLayer();
         _materialLayer.Mode = mode;
         _materialLayer.AttachSource(_presenter);
     }
@@ -368,7 +361,6 @@ public class ComponentHost : ContentControl
     {
         if (_materialLayer is null) return;
         _materialLayer.DetachSource();
-        _root?.Children.Remove(_materialLayer);
         _materialLayer = null;
     }
 
