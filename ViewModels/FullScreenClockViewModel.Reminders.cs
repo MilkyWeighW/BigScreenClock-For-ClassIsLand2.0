@@ -279,14 +279,27 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
                 CollectComponents(child, ref title, ref remaining, texts);
     }
 
-    /// <summary>从 CI Settings.json 缓存读取天气 + 预警（每 60 秒）。</summary>
-    private void RefreshWeather()
+    /// <summary>
+    /// 从 CI Settings.json 缓存读取天气 + 预警（每 60 秒）。
+    ///
+    /// 读盘放到线程池：这里要读同一个 Settings.json 三遍（天气 / 未来降雨窗口 / 降雨提醒），
+    /// 以前全在 UI 线程上做，长跑的大屏每 60 秒就卡一下。现在后台读完再回 UI 线程应用；
+    /// 读失败时保持上次数据（与旧实现一致）。
+    /// </summary>
+    private async void RefreshWeather()
     {
         try
         {
             var settingsPath = Path.Combine(CiDataDir, "Settings.json");
             if (!File.Exists(settingsPath)) return;
-            var (code, temp, alerts) = CiWeatherReader.ReadLastWeather(settingsPath);
+
+            // 三个读法各自解析同一个文件——统一丢给线程池，别占 UI 线程
+            var (weather, rainHours, rainReminder) = await Task.Run(() => (
+                CiWeatherReader.ReadLastWeather(settingsPath),
+                CiWeatherReader.ReadRainHours(settingsPath),
+                CiWeatherReader.ReadRainReminder(settingsPath)));
+
+            var (code, temp, alerts) = weather;
 
             _weatherAlerts.Clear();
             _weatherAlerts.AddRange(alerts);
@@ -312,8 +325,8 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
 
             _weatherCode = string.IsNullOrEmpty(code) ? null : code;
             _weatherTempC = string.IsNullOrEmpty(temp) ? null : ParseTemp(temp);
-            _rainHours = CiWeatherReader.ReadRainHours(settingsPath);
-            RainReminderTitle = CiWeatherReader.ReadRainReminder(settingsPath) ?? "";
+            _rainHours = rainHours;
+            RainReminderTitle = rainReminder ?? "";
             NotifyReminderChanged();
         }
         catch { }

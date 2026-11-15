@@ -22,6 +22,11 @@ public partial class FullScreenClockWindow : Window
 {
     private const int TopmostGuardIntervalMs = 1500;
 
+    /// <summary>
+    /// 躲光标的延迟取消源：鼠标一动就作废上一次的延迟，换一个新的。
+    /// 每次 PointerMoved 都 new 一个却从不 Dispose 会一路漏 CTS 与它的 timer 注册（旧代码的问题），
+    /// 这里改成「取消并释放旧的、换新的」，窗口关闭时统一清掉最后一个。
+    /// </summary>
     private CancellationTokenSource? _hideCursorCts;
     private DispatcherTimer? _fadeOutTimer;
     private bool _reassertPosted;
@@ -38,6 +43,7 @@ public partial class FullScreenClockWindow : Window
     public FullScreenClockWindow()
     {
         InitializeComponent();
+        HookBackgroundModes();
         KeyDown += OnKeyDown;
         PointerMoved += OnPointerMoved;
 
@@ -58,6 +64,9 @@ public partial class FullScreenClockWindow : Window
         Closed += (_, _) =>
         {
             _topmostGuardTimer.Stop();
+            _hideCursorCts?.Cancel();
+            _hideCursorCts?.Dispose();
+            _hideCursorCts = null;
             (DataContext as FullScreenClockViewModel)?.ResetPositionLimits();
         };
 
@@ -268,13 +277,27 @@ public partial class FullScreenClockWindow : Window
     private void OnPointerMoved(object? sender, PointerEventArgs e)
     {
         Cursor = Cursor.Default;
-        _hideCursorCts?.Cancel();
+
+        // 取消并释放上一次的延迟，再换一个新的（见字段注释）。
+        var previous = _hideCursorCts;
         _hideCursorCts = new CancellationTokenSource();
-        var token = _hideCursorCts.Token;
-        Task.Delay(10000, token).ContinueWith(_ =>
+        previous?.Cancel();
+        previous?.Dispose();
+
+        _ = HideCursorAfterDelayAsync(_hideCursorCts.Token);
+    }
+
+    /// <summary>鼠标静止 10 秒后把光标藏起来；被下一次移动取消时不做事。</summary>
+    private async Task HideCursorAfterDelayAsync(CancellationToken token)
+    {
+        try
         {
-            if (!token.IsCancellationRequested)
-                Dispatcher.UIThread.Post(() => Cursor = null);
-        }, TaskScheduler.Default);
+            await Task.Delay(10000, token).ConfigureAwait(false);
+            Dispatcher.UIThread.Post(() => Cursor = null);
+        }
+        catch (OperationCanceledException)
+        {
+            // 鼠标又动了：这一次延迟作废
+        }
     }
 }

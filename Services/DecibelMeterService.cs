@@ -104,7 +104,7 @@ public class DecibelMeterService : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// 开始监听。固定使用默认麦克风（设备 0），失败则自动搜索可用设备。
+    /// 开始监听。优先用系统默认输入设备（WinMM 的 WAVE_MAPPER = -1），失败再按枚举顺序逐台尝试。
     /// </summary>
     public void StartMonitoring()
     {
@@ -129,10 +129,14 @@ public class DecibelMeterService : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            // 固定用默认设备（0）；打开失败自动搜其他可用设备（如设备休眠失效后看门狗重启）。
+            // 默认设备是 WinMM 的 WAVE_MAPPER = -1，不是 0：0 只是「枚举到的第一台」。
+            // 默认麦克风是 USB 耳麦时，-1 和 0 往往不是同一个设备，以前固定取 0 会录错来源。
+            // 打开失败再按枚举顺序逐台试（设备休眠失效后看门狗重启时用得上）。
             // 缓冲时长 = 采样间隔：块越大采样越稀，越省性能、越不拖日志与大屏时钟。
             var bufferMs = (int)Math.Clamp(_settings.SamplingIntervalSeconds * 1000, 100, 1000);
-            foreach (var idx in Enumerable.Range(0, count))
+            var candidates = new List<int> { -1 };
+            candidates.AddRange(Enumerable.Range(0, count));
+            foreach (var idx in candidates)
             {
                 WaveInEvent? wi = null;
                 try

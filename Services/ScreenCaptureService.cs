@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -25,16 +26,40 @@ namespace LargeScreenClockRevived.Services;
 /// </summary>
 public static class ScreenCaptureService
 {
+    /// <summary>StretchBlt 的 HALFTONE 模式：缩小时取平均色，缩略图/过渡截图不会出现锯齿。</summary>
+    private const int HalftoneStretchMode = 4;
+
+    private const uint SourceCopy = 0x00CC0020;
+    private const uint CaptureBlt = 0x40000000;
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern bool StretchBlt(IntPtr destDc, int xDest, int yDest, int widthDest, int heightDest,
+        IntPtr sourceDc, int xSource, int ySource, int widthSource, int heightSource, uint rop);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern int SetStretchBltMode(IntPtr deviceContext, int mode);
+
     /// <summary>
     /// 截主屏并压暗。<paramref name="darken"/> 是压暗比例（0 = 原样，1 = 全黑），默认 0.45。
+    /// <paramref name="maxWidth"/> &gt; 0 时按比例缩小（最多这么宽）抓取：开屏过渡只需要一张
+    /// 「垫底用的上一帧」，4K 原分辨率一张就是 30MB+ 托管内存，缩到 2K 宽足够且省得多。
     /// 返回的位图是 Bgra8888 + AlphaFormat.Opaque（截图本来就没有透明度），DPI 记 96。
     /// 失败返回 null。
     /// </summary>
-    public static WriteableBitmap? CapturePrimaryScreen(double darken = 0.45)
+    public static WriteableBitmap? CapturePrimaryScreen(double darken = 0.45, int maxWidth = 0)
     {
         var width = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSCREEN);
         var height = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CYSCREEN);
         if (width <= 0 || height <= 0) return null;
+
+        // 抓取尺寸：不传 maxWidth 就是整屏（与 1.3.1.1 行为一致）
+        var captureWidth = width;
+        var captureHeight = height;
+        if (maxWidth > 0 && width > maxWidth)
+        {
+            captureWidth = maxWidth;
+            captureHeight = Math.Max(1, (int)Math.Round(height * (double)maxWidth / width));
+        }
 
         // 压暗系数夹到 [0,1]：传 1 是纯黑，传负数/超过 1 都不能让乘法反号或溢出。
         var factor = 1.0 - Math.Clamp(darken, 0.0, 1.0);
@@ -53,7 +78,7 @@ public static class ScreenCaptureService
             memoryDc = PInvoke.CreateCompatibleDC(screenDc);
             if (memoryDc == default) return null;
 
-            bitmap = PInvoke.CreateCompatibleBitmap(screenDc, width, height);
+            bitmap = PInvoke.CreateCompatibleBitmap(screenDc, captureWidth, captureHeight);
             if (bitmap.IsNull) return null;
 
             previousObject = PInvoke.SelectObject(memoryDc, bitmap);
@@ -64,15 +89,26 @@ public static class ScreenCaptureService
 
             // CAPTUREBLT 把分层窗口（部分游戏/播放器/输入法的浮层）也带上；
             // 少了它，有些全屏程序会截成一片黑。
-            if (!PInvoke.BitBlt(memoryDc, 0, 0, width, height, screenDc, 0, 0,
-                    ROP_CODE.SRCCOPY | ROP_CODE.CAPTUREBLT))
-                return null;
+            if (captureWidth == width && captureHeight == height)
+            {
+                if (!PInvoke.BitBlt(memoryDc, 0, 0, width, height, screenDc, 0, 0,
+                        ROP_CODE.SRCCOPY | ROP_CODE.CAPTUREBLT))
+                    return null;
+            }
+            else
+            {
+                // 缩小抓取：HALFTONE 让缩小时的像素取平均，过渡截图不会显得脏/闪
+                SetStretchBltMode(memoryDc, HalftoneStretchMode);
+                if (!StretchBlt(memoryDc, 0, 0, captureWidth, captureHeight, screenDc, 0, 0, width, height,
+                        SourceCopy | CaptureBlt))
+                    return null;
+            }
 
-            var pixels = ReadPixels(memoryDc, bitmap, width, height);
+            var pixels = ReadPixels(memoryDc, bitmap, captureWidth, captureHeight);
             if (pixels is null) return null;
 
             Darken(pixels, factor);
-            return Encode(pixels, width, height);
+            return Encode(pixels, captureWidth, captureHeight);
         }
         catch
         {

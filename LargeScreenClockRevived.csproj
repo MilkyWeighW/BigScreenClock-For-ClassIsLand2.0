@@ -34,6 +34,10 @@
              故直接引 NAudio.WinMM（传递依赖 NAudio.Core），不再引入元包 NAudio 及其 Wasapi 后端；
              Asio/Midi/WinForms 自然也不会被拷进输出目录。 -->
         <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+        <!-- 网页背景：Edge WebView2 运行时由系统安装（Win10/11 一般自带），这里只引托管封装 + Loader。
+             版本锁在 1.0.4314.35（latest stable）；不引 Avalonia.WebView 之类的第三方封装。 -->
+        <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+
         <!-- 摄像头占用检测的 Windows API 声明（PrivateAssets：只在编译期生成代码，不进 cipx） -->
         <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.106" PrivateAssets="all" />
         <!-- 与 ClassIsland 主程序同版本(11.3.17)；运行时主程序已加载该 DLL，故排除 runtime 避免重复打包 -->
@@ -41,6 +45,22 @@
             <ExcludeAssets>runtime; native</ExcludeAssets>
         </PackageReference>
     </ItemGroup>
+
+    <!-- WebView2 包里的 WPF/WinForms 封装我们不用（只用到 Core + 原生 Loader）：
+         它们引用 WindowsBase 5.0，与 net8 的 4.0 冲突（MSB3277），还会让 cipx 白多两套桌面封装。
+         在解析引用与拷贝本地程序集两个阶段各摘一次，只保留 Core 与 runtimes 下的 WebView2Loader。 -->
+    <Target Name="DropWebView2DesktopWrappers" BeforeTargets="ResolveAssemblyReferences">
+        <ItemGroup>
+            <Reference Remove="@(Reference)"
+                       Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+        </ItemGroup>
+    </Target>
+    <Target Name="DropWebView2DesktopWrappersFromOutput" BeforeTargets="_CopyFilesMarkedCopyLocal">
+        <ItemGroup>
+            <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+                                     Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+        </ItemGroup>
+    </Target>
 
     <!--
       内部开发版号：manifest.yml 里永远只写四位对外版本号（如 1.1.1.8），

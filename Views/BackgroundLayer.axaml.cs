@@ -37,12 +37,25 @@ public partial class BackgroundLayer : UserControl
     private const double IntroDimOpacity = 0.45; // 开屏时压暗截图的程度（与原截图压暗系数一致）
     private const double IntroOverlapRatio = 0.75; // 压暗演到 75% 就开始换背景，两段动画重叠
 
+    /// <summary>开屏截图的最大像素宽度：只为过渡垫底，不必按 4K 原尺寸占内存。</summary>
+    private const int MaxIntroCapturePixelWidth = 2560;
+
     /// <summary>背景层圆角：全屏时 0，设置页预览时是预览卡片的圆角。</summary>
     public new CornerRadius CornerRadius
     {
         get => ClipBorder.CornerRadius;
         set => ClipBorder.CornerRadius = value;
     }
+
+    /// <summary>
+    /// 当前背景是否需要「窗口本身透明」。实时模糊（DWM 在窗口背后画）与网页背景
+    /// （WebView2 在更下面一层窗口画）都要求大屏窗口不自己铺底色，组件直接叠在透明层上。
+    ///
+    /// 为什么由背景层给出：窗口侧的接线（Avalonia 透明提示 / 系统底色）和「当前背景类型」
+    /// 是同一件事，放在这里窗口只要读一次 <see cref="Apply"/> 后的值，不用在窗口里重复判断
+    /// BackgroundKind。每次 <see cref="Apply"/> 都会刷新它。
+    /// </summary>
+    public bool NeedsTransparentWindow { get; private set; }
 
     /// <summary>壁纸的景深放大用：挂在 TargetImage.RenderTransform 上（XAML 里不建，见 axaml 注释）。</summary>
     private readonly ScaleTransform _targetScale = new(1, 1);
@@ -65,6 +78,12 @@ public partial class BackgroundLayer : UserControl
     private int _wallpaperRequestId;
     private double _appliedBlurRadius = double.NaN;
     private string? _appliedImageFile;
+
+    // 画刷缓存：拖滑块时 Apply 会被高频调用，颜色没变就不该每次 new 一个 SolidColorBrush
+    private SolidColorBrush? _solidBrush;
+    private string? _solidBrushHex;
+    private SolidColorBrush? _veilBrush;
+    private Color _veilColor = Colors.Transparent;
 
     public BackgroundLayer()
     {
@@ -90,6 +109,9 @@ public partial class BackgroundLayer : UserControl
         var animate = _appliedOnce && !isPreview && _attached;
         var oldSource = TargetImage.Source as Bitmap;
 
+        // 先算好窗口要不要透明：后面的 ApplyXxx 只管画自己的东西
+        NeedsTransparentWindow = kind is BackgroundKind.NativeBlur or BackgroundKind.WebPage;
+
         switch (kind)
         {
             case BackgroundKind.Wallpaper:
@@ -97,6 +119,10 @@ public partial class BackgroundLayer : UserControl
                 break;
             case BackgroundKind.CustomImage:
                 ApplyCustomImage(settings);
+                break;
+            case BackgroundKind.NativeBlur:
+            case BackgroundKind.WebPage:
+                ApplyPassThrough();
                 break;
             default:
                 ApplySolidColor(settings);
@@ -170,6 +196,11 @@ public partial class BackgroundLayer : UserControl
         TargetImage.Opacity = 0;
         SolidFill.Opacity = 0;
         PriorImage.Opacity = 0;
+
+        // 壁纸 / 自定义图的底色从第一帧就垫着（被截图 PriorImage 盖住，看不见），
+        // 截图淡出时正好露出底色 + 目标图；纯色类型才需要让底色参与淡入。
+        if (kind is BackgroundKind.Wallpaper or BackgroundKind.CustomImage)
+            SolidFill.Opacity = 1;
         PriorImage.Transitions = null;
         IntroVeil.Transitions = null;
         IntroVeil.Opacity = 0;
@@ -179,7 +210,7 @@ public partial class BackgroundLayer : UserControl
 
         // ① 当前屏幕截图原样垫在最底下（优先用调用方在 Show 之前拍的干净截图）。
         //    这里不再预先乘压暗系数：压暗交给 IntroVeil 做动画，第一帧才不会直接黑一下。
-        var shot = priorScreenshot ?? ScreenCaptureService.CapturePrimaryScreen(0.0);
+        var shot = priorScreenshot ?? ScreenCaptureService.CapturePrimaryScreen(0.0, MaxIntroCapturePixelWidth);
         if (shot is null)
         {
             // 截屏失败（远程桌面/受保护内容）：退化成直接显示背景 + 组件淡入
@@ -216,6 +247,8 @@ public partial class BackgroundLayer : UserControl
         _introCts = cts;
 
         var wallpaper = kind == BackgroundKind.Wallpaper;
+        // 实时模糊 / 网页：背景层不铺任何东西，时间线只演「截图 + 压暗淡出」，露出下层窗口
+        var passThrough = kind is BackgroundKind.NativeBlur or BackgroundKind.WebPage;
         var fromZoom = wallpaper ? Math.Max(1.0, zoom - 0.15) : 1.0;
         _targetScale.ScaleX = fromZoom;
         _targetScale.ScaleY = fromZoom;
@@ -269,7 +302,7 @@ public partial class BackgroundLayer : UserControl
             {
                 TargetImage.Opacity = eased;
             }
-            else
+            else if (!passThrough)
             {
                 SolidFill.Opacity = eased;
             }
@@ -295,8 +328,13 @@ public partial class BackgroundLayer : UserControl
 
         PriorImage.Opacity = 0;
         IntroVeil.Opacity = 0;
-        TargetImage.Opacity = kind == BackgroundKind.SolidColor ? 0 : 1;
-        SolidFill.Opacity = kind == BackgroundKind.SolidColor ? 1 : 0;
+
+        // 底色（SolidFill）对壁纸/自定义图/纯色都是「垫满整窗」的底：
+        // 窗口本身是透明的，Fit 留白和壁纸还没解出来的瞬间都应该看到设置里的背景色，
+        // 而不是透出桌面。只有实时模糊/网页类型才完全不铺（交给下层窗口画）。
+        var passThrough = kind is BackgroundKind.NativeBlur or BackgroundKind.WebPage;
+        TargetImage.Opacity = kind == BackgroundKind.SolidColor || passThrough ? 0 : 1;
+        SolidFill.Opacity = passThrough ? 0 : 1;
         var finalZoom = kind == BackgroundKind.Wallpaper ? zoom : 1;
         _targetScale.ScaleX = finalZoom;
         _targetScale.ScaleY = finalZoom;
@@ -398,7 +436,9 @@ public partial class BackgroundLayer : UserControl
         _targetScale.ScaleX = zoom;
         _targetScale.ScaleY = zoom;
         TargetImage.Stretch = Stretch.UniformToFill;
-        SolidFill.Opacity = 0;
+        // 底色始终垫在壁纸下面：窗口是透明的，壁纸铺不到的地方要露背景色而不是桌面
+        SolidFill.Background = GetSolidBrush(settings.BackgroundColor);
+        SolidFill.Opacity = 1;
         TargetImage.Opacity = 1;
     }
 
@@ -448,7 +488,9 @@ public partial class BackgroundLayer : UserControl
             2 => Stretch.Fill,          // 拉伸
             _ => Stretch.UniformToFill, // 铺满裁切
         };
-        SolidFill.Opacity = 0;
+        // 「完整显示」会留出左右/上下空白：窗口透明时露出的应该是设置的背景色
+        SolidFill.Background = GetSolidBrush(settings.BackgroundColor);
+        SolidFill.Opacity = 1;
         TargetImage.Opacity = 1;
     }
 
@@ -456,13 +498,34 @@ public partial class BackgroundLayer : UserControl
     private void ApplySolidColor(PluginSettings settings)
     {
         ReplaceTarget(null);
-        SolidFill.Background = new SolidColorBrush(ParseColorOrDefault(settings.BackgroundColor, Colors.Black));
+        SolidFill.Background = GetSolidBrush(settings.BackgroundColor);
         TargetImage.Opacity = 0;
         SolidFill.Opacity = 1;
         _targetScale.ScaleX = 1;
         _targetScale.ScaleY = 1;
         _appliedWallpaperPath = null;
         _appliedImageFile = null;
+    }
+
+    /// <summary>
+    /// 实时模糊 / 网页背景：背景层自己什么都不画。窗口保持透明，
+    /// 画面由下层窗口提供（DWM 模糊桌面 / WebView2 网页窗口）。
+    ///
+    /// 这里必须把之前烘好的整屏位图放掉并让在途的壁纸解码作废：
+    /// 否则切到网页背景后，一次迟到的壁纸解码结果会突然把网页盖掉。
+    /// </summary>
+    private void ApplyPassThrough()
+    {
+        ReplaceTarget(null);
+        DisposeFadingFrame();
+        SolidFill.Opacity = 0;
+        TargetImage.Opacity = 0;
+        _targetScale.ScaleX = 1;
+        _targetScale.ScaleY = 1;
+        _appliedWallpaperPath = null;
+        _appliedImageFile = null;
+        _appliedBlurRadius = double.NaN;
+        _wallpaperRequestId++;
     }
 
     /// <summary>明暗遮罩：BackgroundDim 负值压暗、正值提亮；0 = 完全透明。</summary>
@@ -474,7 +537,7 @@ public partial class BackgroundLayer : UserControl
             > 0.5 => (Colors.White, Math.Min(0.55, dim / 100.0 * 0.55)),
             _ => (Colors.Transparent, 0.0),
         };
-        Veil.Background = new SolidColorBrush(color);
+        Veil.Background = GetVeilBrush(color);
         if (animate) SetFade(Veil, VeilFadeMs);
         Veil.Opacity = opacity;
     }
@@ -567,6 +630,26 @@ public partial class BackgroundLayer : UserControl
         return 1920;
     }
 
+    /// <summary>取纯色底画刷：颜色没变就复用，避免拖动滑块时每次 Apply 都新建画刷。</summary>
+    private SolidColorBrush GetSolidBrush(string? hex)
+    {
+        if (_solidBrush is not null && string.Equals(hex, _solidBrushHex, StringComparison.Ordinal))
+            return _solidBrush;
+
+        _solidBrushHex = hex;
+        _solidBrush = new SolidColorBrush(ParseColorOrDefault(hex, Colors.Black));
+        return _solidBrush;
+    }
+
+    /// <summary>取明暗遮罩画刷：按颜色复用，透明度变化只改 Opacity，不重建画刷。</summary>
+    private SolidColorBrush GetVeilBrush(Color color)
+    {
+        if (_veilBrush is not null && _veilColor == color) return _veilBrush;
+        _veilColor = color;
+        _veilBrush = new SolidColorBrush(color);
+        return _veilBrush;
+    }
+
     private static Color ParseColorOrDefault(string? hex, Color fallback)
     {
         try { return string.IsNullOrWhiteSpace(hex) ? fallback : Color.Parse(hex); }
@@ -587,12 +670,19 @@ public partial class BackgroundLayer : UserControl
         base.OnDetachedFromVisualTree(e);
         _attached = false;
         ReleaseBitmaps();
+        // 真正离开视觉树才算「这次会话结束」；窗口只是 Hide（没有脱离可视树）时不能置这个标记，
+        // 否则下次显示时 OnAttachedToVisualTree 不会再触发，Apply/PlayIntro 会一直 early-return，
+        // 背景永久黑掉（1.4.0.0 集成时踩到的坑）。
+        _disposed = true;
     }
 
-    /// <summary>离开视觉树时把整屏位图释放掉（大屏关了不占内存）。</summary>
+    /// <summary>
+    /// 把整屏位图释放掉（大屏隐藏/关闭都不该占着几十 MB）。
+    /// 只释放资源，**不**把对象标记成已释放：窗口 Hide 不脱离可视树，之后还要接着用。
+    /// </summary>
     public void ReleaseBitmaps()
     {
-        _disposed = true;
+        StopIntroTimeline();
         TargetImage.Source = null;
         PriorImage.Source = null;
         _targetBitmap?.Dispose();
@@ -601,5 +691,9 @@ public partial class BackgroundLayer : UserControl
         _priorBitmap = null;
         _fadingBitmap?.Dispose();
         _fadingBitmap = null;
+
+        // 窗口关掉/隐藏后没有人再需要整屏壁纸：把缓存里的强引用位图降级成弱引用，
+        // 让 GC 能真正收回内存。下次开屏再命中磁盘缓存重新解码，代价只有几十毫秒。
+        WallpaperCacheService.TrimMemoryCache();
     }
 }

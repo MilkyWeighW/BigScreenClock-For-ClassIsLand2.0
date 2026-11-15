@@ -23,7 +23,7 @@ namespace LargeScreenClockRevived.Settings;
 public partial class SettingsPage
 {
     /// <summary>
-    /// 「组件」页签里的全部组件（13 个，顺序 = <see cref="ComponentCatalog"/> 清单顺序）。
+    /// 「组件」页签里的全部静态组件（14 个，顺序 = <see cref="ComponentCatalog"/> 清单顺序；贴纸实例另外追加）。
     /// 页面每次打开都新建，行也是一次性建好；之后只有 Layout 里的属性会变。
     /// </summary>
     public ObservableCollection<ComponentSettingItem> ComponentItems { get; } = new();
@@ -124,21 +124,129 @@ public partial class SettingsPage
         }
         ComponentItems.Clear();
 
-        for (var i = 0; i < ComponentCatalog.All.Count; i++)
-        {
-            var descriptor = ComponentCatalog.All[i];
-            ComponentItems.Add(new ComponentSettingItem(descriptor, _settings.GetComponentLayout(descriptor.Id), i));
-        }
+        AddCatalogComponentItems();
+        AddStickerComponentItems();
 
         RebuildLists();
 
         // Layout 挂在设置对象上、比页面活得久：只在页面挂到可视树上时订阅，收起时摘掉，免得留下页面。
-        Loaded += (_, _) => HookComponentLayouts();
+        Loaded += (_, _) =>
+        {
+            HookComponentLayouts();
+            // 贴纸列表变化（面板里增删/换图）→ 组件条跟着重建，新实例立刻出现在这里
+            _settings.PropertyChanged -= OnComponentsSettingsChanged;
+            _settings.PropertyChanged += OnComponentsSettingsChanged;
+        };
         Unloaded += (_, _) =>
         {
             UnhookComponentLayouts();
+            _settings.PropertyChanged -= OnComponentsSettingsChanged;
         };
     }
+
+    /// <summary>
+    /// 静态组件行。贴纸实例已经存在时跳过旧版「自定义图片」（image）那一行：
+    /// 1.4.0.0 起图片由贴纸实例承载，旧的单图字段已迁移进实例，这一行既没有图可显示、
+    /// 再选图也只会写回旧字段（大屏不再读它），留在条上只会让人困惑。
+    /// 它的布局对象仍保留在设置里，不会因为这里不显示而丢失。
+    /// </summary>
+    private void AddCatalogComponentItems()
+    {
+        var hasStickers = _settings.ImageInstances.Count > 0;
+
+        for (var i = 0; i < ComponentCatalog.All.Count; i++)
+        {
+            var descriptor = ComponentCatalog.All[i];
+            if (hasStickers && string.Equals(descriptor.Id, ComponentIds.LegacyImage, StringComparison.Ordinal))
+                continue;
+            ComponentItems.Add(new ComponentSettingItem(descriptor, _settings.GetComponentLayout(descriptor.Id), i));
+        }
+    }
+
+    /// <summary>
+    /// 贴纸实例行：每个实例在组件条里是一行独立组件（id = image:实例id），
+    /// 选中后走的是同一套「大小 / 位置 / 不透明度 / 外观」设置行，所以不用为贴纸另做一套界面。
+    /// </summary>
+    private void AddStickerComponentItems()
+    {
+        _settings.EnsureImageInstances();   // 老配置首次打开设置页时兜一次迁移
+
+        for (var i = 0; i < _settings.ImageInstances.Count; i++)
+        {
+            var instance = _settings.ImageInstances[i];
+            var descriptor = new ComponentDescriptor(
+                instance.ComponentId,
+                "贴纸 " + (i + 1),
+                "自选图片（贴纸）。大小、位置、不透明度与其它组件一样调。",
+                "\uE9B2");
+            ComponentItems.Add(new ComponentSettingItem(
+                descriptor,
+                _settings.GetComponentLayout(instance.ComponentId),
+                ComponentCatalog.All.Count + i));
+        }
+    }
+
+    /// <summary>贴纸列表变了：只重建贴纸那几行，静态组件行不动（它们的布局对象没变）。</summary>
+    private void OnComponentsSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not nameof(PluginSettings.ImageInstances)) return;
+        RefreshStickerComponentItems();
+    }
+
+    /// <summary>把贴纸实例行按最新列表重建，并顺手收拾选中项（被删的那个实例不能让设置行悬空）。</summary>
+    private void RefreshStickerComponentItems()
+    {
+        if (_suppressListRebuild) return;
+
+        foreach (var item in ComponentItems.Where(IsStickerItem).ToList())
+        {
+            item.Layout.PropertyChanged -= OnComponentLayoutChanged;
+            item.DetachLayout();
+        }
+        foreach (var item in ComponentItems.Where(IsStickerItem).ToList())
+            ComponentItems.Remove(item);
+
+        // 旧版「自定义图片」行的去留跟着贴纸列表走：有实例时它已被实例取代（藏起来），
+        // 实例全删光时再放回来 —— 它的布局对象一直在设置里，用户随时能把那张图加回来。
+        var hasImageRow = ComponentItems.Any(item =>
+            string.Equals(item.Descriptor.Id, ComponentIds.LegacyImage, StringComparison.Ordinal));
+        if (_settings.ImageInstances.Count > 0)
+        {
+            if (hasImageRow)
+            {
+                var legacy = ComponentItems.First(item =>
+                    string.Equals(item.Descriptor.Id, ComponentIds.LegacyImage, StringComparison.Ordinal));
+                legacy.Layout.PropertyChanged -= OnComponentLayoutChanged;
+                legacy.DetachLayout();
+                ComponentItems.Remove(legacy);
+            }
+        }
+        else if (!hasImageRow)
+        {
+            var descriptor = ComponentCatalog.All.FirstOrDefault(d =>
+                string.Equals(d.Id, ComponentIds.LegacyImage, StringComparison.Ordinal));
+            if (descriptor is not null)
+            {
+                var index = ComponentCatalog.All.ToList().IndexOf(descriptor);
+                ComponentItems.Add(new ComponentSettingItem(descriptor, _settings.GetComponentLayout(descriptor.Id), index));
+            }
+        }
+
+        AddStickerComponentItems();
+        if (_componentLayoutsHooked)
+        {
+            foreach (var item in ComponentItems.Where(IsStickerItem))
+            {
+                item.Layout.PropertyChanged += OnComponentLayoutChanged;
+                item.AttachLayout();
+            }
+        }
+
+        RebuildLists();
+    }
+
+    private static bool IsStickerItem(ComponentSettingItem item)
+        => ComponentIds.TryGetImageInstanceId(item.Descriptor.Id, out _);
 
     /// <summary>
     /// 一键重置后重建组件行：布局对象整批换成了默认实例，旧行还绑在旧对象上，必须重挂。
@@ -153,11 +261,8 @@ public partial class SettingsPage
         }
         ComponentItems.Clear();
 
-        for (var i = 0; i < ComponentCatalog.All.Count; i++)
-        {
-            var descriptor = ComponentCatalog.All[i];
-            ComponentItems.Add(new ComponentSettingItem(descriptor, _settings.GetComponentLayout(descriptor.Id), i));
-        }
+        AddCatalogComponentItems();
+        AddStickerComponentItems();
 
         // 新布局对象也要挂上「启停/排序变化」监听；先把旧订阅状态清掉再重挂。
         _componentLayoutsHooked = false;
@@ -258,7 +363,7 @@ public partial class SettingsPage
     private static int EffectiveOrder(ComponentSettingItem item) => item.Layout.Order ?? item.CatalogIndex;
 
     /// <summary>
-    /// 把 13 个组件的 Order 统一写成 0..12（按当前生效顺序）。
+    /// 把 14 个静态组件的 Order 统一写成 0..13（按当前生效顺序；贴纸实例另有自己的布局）。
     /// 只有用户点箭头挪动时才调用：平时允许 Order 是 null，省得启动就改一遍设置。
     /// </summary>
     private void NormalizeOrders()

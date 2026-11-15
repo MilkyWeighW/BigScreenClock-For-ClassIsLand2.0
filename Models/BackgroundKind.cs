@@ -16,4 +16,16 @@ public enum BackgroundKind
 
     /// <summary>自定义图片，文件是 <see cref="PluginSettings.BackgroundImageFile"/>。</summary>
     CustomImage = 2,
+
+    /// <summary>
+    /// 实时模糊：不画自己的底，而是让 Windows 原生把窗口后面的画面实时模糊掉
+    /// （DWM 的 blur-behind / acrylic）。窗口内容保持透明，组件直接叠在这层模糊之上。
+    /// </summary>
+    NativeBlur = 3,
+
+    /// <summary>
+    /// 网页背景：用 Edge WebView2 在独立的下层窗口里显示 <see cref="PluginSettings.BackgroundWebUrl"/>，
+    /// 大屏窗口保持透明，组件叠在网页之上。WebView2 运行时不在了就自动退回纯色。
+    /// </summary>
+    WebPage = 4,
 }

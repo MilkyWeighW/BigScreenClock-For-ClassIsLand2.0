@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LargeScreenClockRevived.Views.WebBackgroundWindow"
+        SystemDecorations="None"
+        CanResize="False"
+        CanMinimize="False"
+        CanMaximize="False"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="False"
+        Focusable="False"
+        WindowStartupLocation="Manual"
+        Background="Black">
+
+    <!-- 下层网页窗口：整窗只放一个兜底底色。
+         网页画面由 WebView2 自己的子窗口盖在这上面；WebView2 初始化失败/还没就绪时，
+         用户看到的就是这条纯色底（由服务按设置里的背景颜色刷新），不会是一块白板。 -->
+    <Border x:Name="FallbackFill" Background="Black"/>
+</Window>

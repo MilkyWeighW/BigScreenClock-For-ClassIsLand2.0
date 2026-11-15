@@ -208,15 +208,13 @@
                 </StackPanel>
                 </views:ComponentHost>
 
-                <!-- 自定义图片（班徽 / logo 等）：默认贴在主体区右侧居中，具体位置用组件页里的
-                     「水平/垂直位置」微调、大小用「大小倍率」调。没选图时 code-behind 把整块隐藏，
-                     不会留一块空壳占位置。 -->
-                <views:ComponentHost x:Name="ImageHost" ComponentId="image"
-                                     HorizontalAlignment="Right" VerticalAlignment="Center"
-                                     Margin="0,0,40,0" IsHitTestVisible="False">
-                    <Image x:Name="CustomImage" Stretch="Uniform"
-                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                </views:ComponentHost>
+                <!-- 贴纸层（自定义图片，1.4.0.0 起支持多个实例）：每个贴纸实例一个 ComponentHost，
+                     由 code-behind 按 Plugin.Settings.ImageInstances 动态生成/移除（见 SyncStickerHosts）。
+                     为什么不再是一个固定的 ImageHost：多贴纸要各自有独立的布局键（image:实例id），
+                     而 ComponentHost 是按 ComponentId 读布局的，所以只能一实例一壳。
+                     这一层本身不吃鼠标（贴纸只是装饰），每个壳仍按老规矩贴在主体区右侧居中、
+                     位置/大小用组件页里的「位置偏移 / 大小倍率」调。 -->
+                <Panel x:Name="StickerLayer" IsHitTestVisible="False"/>
             </Grid>
 
             <!-- 底部：计数（左）/ 课程信息（正中）/ 按钮（右）同一行、同一高度。

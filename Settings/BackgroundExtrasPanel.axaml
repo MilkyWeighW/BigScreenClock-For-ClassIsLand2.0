@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LargeScreenClockRevived.Settings.BackgroundExtrasPanel"
+             IsVisible="False">
+
+    <!-- 背景页签的「1.4 新档位」补充面板：实时模糊说明 + 网页背景地址/运行时状态。
+         做成自包含控件（自己从 Plugin.Settings 取数据），设置页只需把它插进「背景」分组，
+         不用为它的内部逻辑再写任何代码。默认整块隐藏，只在选了实时模糊/网页背景时显示。 -->
+    <StackPanel Spacing="10">
+
+        <!-- 实时模糊：没有可填的输入，只解释它是什么、在什么情况下会自动退回 -->
+        <StackPanel x:Name="NativeBlurSection" Spacing="4" IsVisible="False">
+            <TextBlock Text="实时模糊" FontSize="13" FontWeight="SemiBold"/>
+            <TextBlock x:Name="NativeBlurHint" TextWrapping="Wrap" FontSize="12"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+
+        <!-- 网页背景：地址输入 + 应用 + WebView2 运行时状态 -->
+        <StackPanel x:Name="WebSection" Spacing="6" IsVisible="False">
+            <TextBlock Text="网页地址" FontSize="13" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox x:Name="UrlBox" FontSize="13" Padding="8,5" CornerRadius="6"
+                         Watermark="https://example.com" VerticalAlignment="Center"/>
+                <Button x:Name="ApplyButton" Grid.Column="1" Content="应用" Margin="8,0,0,0"
+                        FontSize="13" Padding="12,5" CornerRadius="6" Cursor="Hand"/>
+            </Grid>
+            <TextBlock x:Name="UrlHint" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <TextBlock x:Name="AvailabilityText" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

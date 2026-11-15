@@ -82,6 +82,7 @@ public class PluginSettings : INotifyPropertyChanged
         _targetCourseNames.CollectionChanged += (_, _) => OnPropertyChanged(nameof(TargetCourseNames));
         _targetCourseIds.CollectionChanged += (_, _) => OnPropertyChanged(nameof(TargetCourseIds));
         _monitoredCameras.CollectionChanged += (_, _) => OnPropertyChanged(nameof(MonitoredCameras));
+        _imageInstances.CollectionChanged += OnImageInstancesChanged;
     }
 
     /// <summary>
@@ -280,6 +281,166 @@ public class PluginSettings : INotifyPropertyChanged
     private string _customImageFile = "";
     private int _customImageStretch;
 
+    // ===== 贴纸（自定义图片组件的多实例）=====
+
+    private ObservableCollection<ImageInstance> _imageInstances = new();
+
+    /// <summary>
+    /// 贴纸实例列表：自定义图片组件从 1.4.0.0 起支持多个实例，一个实例对应一张图片。
+    /// 每个实例在 <see cref="ComponentLayouts"/> 里有自己的一份布局（键见 <see cref="ImageInstance.ComponentId"/>）。
+    /// </summary>
+    public ObservableCollection<ImageInstance> ImageInstances
+    {
+        get => _imageInstances;
+        set
+        {
+            if (_imageInstances is not null)
+            {
+                _imageInstances.CollectionChanged -= OnImageInstancesChanged;
+                // 反序列化/整体换列表时旧实例也要退订，否则旧列表会一直挂在事件上
+                foreach (var instance in _imageInstances)
+                    instance.PropertyChanged -= OnImageInstancePropertyChanged;
+            }
+
+            _imageInstances = value ?? new ObservableCollection<ImageInstance>();
+
+            // 从 Settings.json 读出来的实例不会再走 CollectionChanged，必须在这里补订阅：
+            // 否则改 File/Stretch 既不会通知 UI，也不会触发防抖存盘。
+            foreach (var instance in _imageInstances)
+                instance.PropertyChanged += OnImageInstancePropertyChanged;
+
+            _imageInstances.CollectionChanged += OnImageInstancesChanged;
+            OnPropertyChanged();
+        }
+    }
+
+    private void OnImageInstancesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+            foreach (ImageInstance instance in e.NewItems)
+                instance.PropertyChanged += OnImageInstancePropertyChanged;
+        if (e.OldItems is not null)
+            foreach (ImageInstance instance in e.OldItems)
+                instance.PropertyChanged -= OnImageInstancePropertyChanged;
+
+        OnPropertyChanged(nameof(ImageInstances));
+    }
+
+    private void OnImageInstancePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        => OnPropertyChanged(nameof(ImageInstances));
+
+    /// <summary>
+    /// 「贴纸实例」迁移版本：0 = 还没迁移过。老配置里只有一张 <see cref="CustomImageFile"/>，
+    /// 升级上来后包装成第一个贴纸实例，外观不变；迁移完置 1。
+    /// </summary>
+    public int StickerMigrationVersion
+    {
+        get => _stickerMigrationVersion;
+        set { _stickerMigrationVersion = value; OnPropertyChanged(); }
+    }
+
+    private int _stickerMigrationVersion;
+
+    /// <summary>
+    /// 补齐贴纸列表：老的单图配置包装成第一个实例；顺手补上每个实例的组件布局。
+    /// 启动时调一次（见 <see cref="Plugin.Initialize"/>），设置页打开时也会兜一次。
+    /// </summary>
+    public void EnsureImageInstances()
+    {
+        if (ImageInstances is null) ImageInstances = new ObservableCollection<ImageInstance>();
+
+        if (StickerMigrationVersion < 1)
+        {
+            if (ImageInstances.Count == 0 && !string.IsNullOrWhiteSpace(CustomImageFile))
+            {
+                var migrated = new ImageInstance
+                {
+                    File = CustomImageFile,
+                    Stretch = CustomImageStretch,
+                };
+                ImageInstances.Add(migrated);
+
+                // 迁移完就把老的单图字段清空：不清的话用户删光贴纸后，
+                // ClockSurface 的「实例为空 → 回退旧单图」分支会把那张图又变出来。
+                CustomImageFile = "";
+                CustomImageStretch = 0;
+            }
+
+            StickerMigrationVersion = 1;
+        }
+
+        foreach (var instance in ImageInstances)
+            GetComponentLayout(instance.ComponentId);
+    }
+
+    /// <summary>新建一个贴纸实例（空图，等用户在设置页里选）；返回实例本身。</summary>
+    public ImageInstance AddImageInstance(string? file = null, int stretch = 0)
+    {
+        var instance = new ImageInstance { File = file ?? "", Stretch = stretch };
+
+        // id 是布局字典的键：重复会让两张贴纸共用一份布局（手改 Settings.json 才会撞）。
+        // 新建时主动避开已有 id，撞了就换一个。
+        var used = new HashSet<string>(ImageInstances.Select(i => i.Id), StringComparer.Ordinal);
+        while (used.Contains(instance.Id)) instance.Id = Guid.NewGuid().ToString("N")[..8];
+
+        ImageInstances.Add(instance);
+        GetComponentLayout(instance.ComponentId);
+        return instance;
+    }
+
+    /// <summary>删掉一个贴纸实例：连同它的布局一起摘掉。</summary>
+    public void RemoveImageInstance(ImageInstance? instance)
+    {
+        if (instance is null) return;
+        ImageInstances.Remove(instance);
+        ComponentLayouts.Remove(instance.ComponentId);
+    }
+
+    // ===== 1.4.0.0：网页背景 / 原生模糊 / 主题色跟随 =====
+
+    private string _backgroundWebUrl = "https://";
+
+    /// <summary>
+    /// 网页背景地址（只在 <see cref="BackgroundKind"/> = <see cref="Models.BackgroundKind.WebPage"/> 时用）。
+    /// 默认留一个 https:// 前缀，方便用户直接粘贴域名。
+    /// </summary>
+    public string BackgroundWebUrl
+    {
+        get => _backgroundWebUrl;
+        set { _backgroundWebUrl = value ?? ""; OnPropertyChanged(); }
+    }
+
+    private bool _followClassIslandAccent = true;
+
+    /// <summary>
+    /// 主题色是否跟随 ClassIsland（单向读取：只把 CI 的强调色抄过来，不回写 CI）。
+    /// 默认开；CI 拿不到强调色时回退到本插件自己的默认主题色（见 <see cref="ThemeAccentColor"/>）。
+    /// </summary>
+    public bool FollowClassIslandAccent
+    {
+        get => _followClassIslandAccent;
+        set { _followClassIslandAccent = value; OnPropertyChanged(); }
+    }
+
+    private string _themeAccentColor = "";
+
+    /// <summary>
+    /// 当前生效的强调色（HEX，空 = 用主题自带的那套）。跟随 CI 时由
+    /// <c>Helpers.CiThemeReader</c> 在启动与主题切换时写入；关掉跟随后可由用户自己调。
+    /// </summary>
+    public string ThemeAccentColor
+    {
+        get => _themeAccentColor;
+        set { _themeAccentColor = value ?? ""; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// 设置页预览的渲染倍率：预览按「最终输出分辨率的 40%」渲染（只影响预览，不影响大屏输出质量）。
+    /// 放在这里当常量，设置页与预览宿主共用同一个数。
+    /// </summary>
+    [JsonIgnore]
+    public const double PreviewRenderScale = 0.4;
+
     /// <summary>
     /// 背景明暗遮罩：负值压暗、正值提亮（-100 ~ 100），0 = 不改。
     /// 花壁纸上文字读不清时用它压一压。
@@ -291,13 +452,13 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 背景类型：0 = 提取当前壁纸，1 = 纯色背景，2 = 自定义图片（见 <see cref="BackgroundKind"/>）。
+    /// 背景类型：0 = 提取当前壁纸，1 = 纯色背景，2 = 自定义图片，3 = 原生实时模糊，4 = 网页（见 <see cref="BackgroundKind"/>）。
     /// 默认「提取当前壁纸」——开箱就是桌面壁纸做底，不用先去设置里挑一张。
     /// </summary>
     public int BackgroundKind
     {
         get => _backgroundKind;
-        set { _backgroundKind = Math.Clamp(value, 0, 2); OnPropertyChanged(); }
+        set { _backgroundKind = Math.Clamp(value, 0, 4); OnPropertyChanged(); }
     }
 
     /// <summary>
@@ -371,11 +532,27 @@ public class PluginSettings : INotifyPropertyChanged
     // 切主题时上面这 6 个颜色会被换掉，所以换之前先把当前这套存回它自己的槽位、再读另一套
     // （见 ClockThemeApplier），这样切回来还是你调过的色，而不是又被打回该主题默认值。
 
+    // 两套槽位是「随手存一下」的配色快照，但 ClockThemeApplier 会直接改它们的字段。
+    // 早先它们是普通自动属性：改了不通知、也不触发 400ms 防抖存盘，只靠同一流程里顺带改的
+    // 6 个颜色属性“搭便车”落盘——一旦哪天只改槽位不改颜色，用户的调色就会静默丢失。
+    // 这里改成带通知的属性，让槽位自己也能触发保存。
+
+    private ThemeColorSet _lightColors = ThemeColorSet.FromPalette(ClockTheme.Light);
+    private ThemeColorSet _darkColors = ThemeColorSet.FromPalette(ClockTheme.Dark);
+
     /// <summary>明亮主题那一套颜色（用户调过就记在这里，切回明亮时恢复）。</summary>
-    public ThemeColorSet LightColors { get; set; } = ThemeColorSet.FromPalette(ClockTheme.Light);
+    public ThemeColorSet LightColors
+    {
+        get => _lightColors;
+        set { _lightColors = value ?? ThemeColorSet.FromPalette(ClockTheme.Light); OnPropertyChanged(); }
+    }
 
     /// <summary>黑暗主题那一套颜色。</summary>
-    public ThemeColorSet DarkColors { get; set; } = ThemeColorSet.FromPalette(ClockTheme.Dark);
+    public ThemeColorSet DarkColors
+    {
+        get => _darkColors;
+        set { _darkColors = value ?? ThemeColorSet.FromPalette(ClockTheme.Dark); OnPropertyChanged(); }
+    }
 
     /// <summary>
     /// 是否显示教室分贝
@@ -725,7 +902,10 @@ public class PluginSettings : INotifyPropertyChanged
         if (_componentLayouts.TryGetValue(id, out var layout) && layout is not null)
             return layout;
 
-        layout = new ComponentLayout();
+        // 新补出来的布局按清单里的默认启用状态走：天气/日期/倒计时默认隐藏（与 CI 主界面重合），
+        // 其余组件默认显示。老配置里已有的布局不会被这里覆盖。
+        var descriptor = ComponentCatalog.Find(id);
+        layout = new ComponentLayout { Enabled = descriptor?.DefaultEnabled ?? true };
         _componentLayouts[id] = layout;
         SubscribeComponentLayout(layout);
         return layout;
@@ -736,6 +916,9 @@ public class PluginSettings : INotifyPropertyChanged
     {
         foreach (var descriptor in ComponentCatalog.All)
             GetComponentLayout(descriptor.Id);
+
+        // 贴纸实例的布局键是动态的，跟着实例列表补
+        EnsureImageInstances();
     }
 
     /// <summary>
@@ -767,6 +950,8 @@ public class PluginSettings : INotifyPropertyChanged
                 case nameof(ComponentVisibilityMigrationVersion):
                 // 「默认压暗 30%」迁移同理：已经套过一次就不要再动用户重置后的明暗值。
                 case nameof(BackgroundDimMigrationVersion):
+                // 贴纸迁移同理：重置后贴纸列表已经清空，再跑一次迁移会把它又补回来。
+                case nameof(StickerMigrationVersion):
                     continue;
             }
 

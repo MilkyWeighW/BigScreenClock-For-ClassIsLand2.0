@@ -52,7 +52,7 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     public string CourseInfoText
     {
         get => _courseInfoText;
-        set { _courseInfoText = value; OnPropertyChanged(); }
+        set => SetProperty(ref _courseInfoText, value);
     }
 
     private double _courseProgress;
@@ -61,7 +61,7 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     public double CourseProgress
     {
         get => _courseProgress;
-        set { _courseProgress = value; OnPropertyChanged(); }
+        set => SetProperty(ref _courseProgress, value);
     }
 
     private bool _showCourseProgress;
@@ -70,7 +70,7 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     public bool ShowCourseProgress
     {
         get => _showCourseProgress;
-        set { _showCourseProgress = value; OnPropertyChanged(); }
+        set => SetProperty(ref _showCourseProgress, value);
     }
 
     /// <summary>底部居中的课程信息字号（设置项，改完进大屏时钟时生效）。</summary>
@@ -80,13 +80,63 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
         set { _courseInfoFontSize = value; OnPropertyChanged(); }
     }
 
+    /// <summary>
+    /// 同步加载当天课表。只给「马上要显示」的时刻用（打开大屏 / 从最小化恢复）：
+    /// 这两个场景本来就在做窗口动画，顺手同步读一次磁盘不会有可感知的影响，
+    /// 而异步加载会让第一帧的课程信息空着。
+    /// 日期在这里一次记下：进入即置，失败也置（课表读失败时免得每秒重试风暴）。
+    /// </summary>
     private void LoadTodaySchedule()
     {
-        // 日期在这里一次记下：进入即置，失败也置（课表读失败时免得每秒重试风暴）
         _scheduleDate = DateTime.Today;
         _todaySlots.Clear();
+        if (ReadScheduleFromDisk() is not { } data) return;
+        _todaySlots.AddRange(data.Slots);
+        _timeOffsetSeconds = data.OffsetSeconds;
+    }
+
+    /// <summary>
+    /// 跨午夜异步重载课表。解析要读 CI 的 Settings.json 与 Profiles 里的 JSON，
+    /// 属于磁盘 IO——每秒刷新循环里直接在 UI 线程上做会让换天那一秒卡一下（1.4 把重读挪去线程池）。
+    /// 旧课表先留着，新数据到了再整体替换，避免换天瞬间课程信息闪空。
+    /// </summary>
+    private async void ReloadTodayScheduleAsync()
+    {
+        if (_loadingSchedule) return;
+        _loadingSchedule = true;
+        // 先记账：读失败也不每秒重试（与同步版同样的策略）
+        _scheduleDate = DateTime.Today;
         try
         {
+            var data = await Task.Run(ReadScheduleFromDisk);
+            if (data is not { } loaded) return;
+            _todaySlots.Clear();
+            _todaySlots.AddRange(loaded.Slots);
+            _timeOffsetSeconds = loaded.OffsetSeconds;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ViewModel] 异步重载课表: {ex}");
+        }
+        finally
+        {
+            _loadingSchedule = false;
+        }
+    }
+
+    /// <summary>
+    /// 真正解析课表：CI 数据目录 → Settings.json（SelectedProfile / TimeOffsetSeconds）
+    /// → Profiles/&lt;profile&gt; 的 TimeLayouts / ClassPlans / Subjects。
+    /// 返回 null 表示读不到（文件缺失/结构不认识），调用方保持原课表不动。
+    /// 纯函数式：只读磁盘、不碰实例状态，因此可以整体丢给线程池。
+    /// </summary>
+    private static (List<TimeSlot> Slots, int OffsetSeconds)? ReadScheduleFromDisk()
+    {
+        try
+        {
+            var slots = new List<TimeSlot>();
+            var offsetSeconds = 0;
+
             var dataDir = Path.GetFullPath(Path.Combine(Plugin.ConfigFolder!, "..", "..", ".."));
             var settingsPath = Path.Combine(dataDir, "Settings.json");
             var profileFileName = "7.json";
@@ -96,19 +146,18 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
                 if (doc.RootElement.TryGetProperty("SelectedProfile", out var sp))
                     profileFileName = sp.GetString() ?? "7.json";
                 if (doc.RootElement.TryGetProperty("TimeOffsetSeconds", out var offset))
-                    _timeOffsetSeconds = offset.GetInt32();
+                    offsetSeconds = offset.GetInt32();
             }
             var profilePath = Path.Combine(dataDir, "Profiles", profileFileName);
-            if (!File.Exists(profilePath)) return;
+            if (!File.Exists(profilePath)) return null;
 
             using var profileDoc = JsonDocument.Parse(File.ReadAllText(profilePath));
             var root = profileDoc.RootElement;
-            if (!root.TryGetProperty("TimeLayouts", out var layouts)) return;
-            if (!root.TryGetProperty("ClassPlans", out var classPlans)) return;
-            if (!root.TryGetProperty("Subjects", out var subjects)) return;
+            if (!root.TryGetProperty("TimeLayouts", out var layouts)) return null;
+            if (!root.TryGetProperty("ClassPlans", out var classPlans)) return null;
+            if (!root.TryGetProperty("Subjects", out var subjects)) return null;
 
-            var now = DateTime.Now;
-            int todayDayOfWeek = (int)now.DayOfWeek;
+            int todayDayOfWeek = (int)DateTime.Now.DayOfWeek;
 
             // 找今天的课表
             JsonElement? todayPlan = null;
@@ -124,9 +173,9 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
                 if (v.TryGetProperty("TimeLayoutId", out var t)) tlId = t.GetString();
                 break;
             }
-            if (todayPlan == null || tlId == null) return;
-            if (!layouts.TryGetProperty(tlId, out var timeLayout)) return;
-            if (!timeLayout.TryGetProperty("Layouts", out var items)) return;
+            if (todayPlan == null || tlId == null) return null;
+            if (!layouts.TryGetProperty(tlId, out var timeLayout)) return null;
+            if (!timeLayout.TryGetProperty("Layouts", out var items)) return null;
 
             var classes = todayPlan.Value.GetProperty("Classes");
             int ci = 0;
@@ -149,7 +198,7 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
                     }
                     ci++;
                 }
-                _todaySlots.Add(new TimeSlot
+                slots.Add(new TimeSlot
                 {
                     Start = start,
                     End = end,
@@ -158,10 +207,13 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
                     SubjectId = subjId,
                 });
             }
+
+            return (slots, offsetSeconds);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[ViewModel] 加载课表: {ex}");
+            return null;
         }
     }
 

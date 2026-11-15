@@ -122,6 +122,11 @@ public partial class SettingsPage : SettingsPageBase, INotifyPropertyChanged
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // 主题色可能由 platform 侧在 CI 主题切换时改写：设置页这半边的强调色预览要跟着重取一次
+        if (e.PropertyName is nameof(PluginSettings.ThemeAccentColor)
+            or nameof(PluginSettings.FollowClassIslandAccent))
+            NotifyThemeAccentChanged();
+
         // 位置现在由组件自己的「位置偏移」负责，不再有位置滑块需要跟着大屏回写同步
         SchedulePreviewSync();
     }
@@ -138,11 +143,32 @@ public partial class SettingsPage : SettingsPageBase, INotifyPropertyChanged
 
     private Size _previewSize = new(1920, 1080);
 
-    /// <summary>预览用的逻辑宽度（= 大屏那块屏幕的逻辑宽度；全屏窗口的 Bounds 就是这个值）。</summary>
-    public double PreviewWidth => _previewSize.Width;
+    /// <summary>
+    /// 大屏那块屏幕的逻辑宽度（全屏窗口的 Bounds 就是这个值）。
+    /// 预览里的 ClockSurface 按这个尺寸排版，再整体缩 <see cref="PluginSettings.PreviewRenderScale"/>，
+    /// 这样预览的换行、字号、边距与真实大屏是同一把尺子，而不是按预览框那点宽度重新排一遍。
+    /// </summary>
+    public double PreviewSourceWidth => _previewSize.Width;
 
-    /// <summary>预览用的逻辑高度。</summary>
-    public double PreviewHeight => _previewSize.Height;
+    /// <summary>大屏那块屏幕的逻辑高度（见 <see cref="PreviewSourceWidth"/>）。</summary>
+    public double PreviewSourceHeight => _previewSize.Height;
+
+    /// <summary>
+    /// 预览框（外面那层 Panel）的宽度：屏幕逻辑宽度 × <see cref="PluginSettings.PreviewRenderScale"/>。
+    /// 预览按最终输出的 40% 渲染，降采样只发生在预览这一侧，不写回设置、也不影响大屏窗口尺寸。
+    /// </summary>
+    public double PreviewWidth => _previewSize.Width * PluginSettings.PreviewRenderScale;
+
+    /// <summary>预览框的高度：屏幕逻辑高度 × <see cref="PluginSettings.PreviewRenderScale"/>。</summary>
+    public double PreviewHeight => _previewSize.Height * PluginSettings.PreviewRenderScale;
+
+    /// <summary>
+    /// ClockSurface 的布局缩放（40%）。用 LayoutTransform 而不是 RenderTransform：
+    /// 布局阶段就按缩放后的尺寸参与测量，预览框才能正好收下 1920×1080 的样子，
+    /// 同时 ClockSurface 内部的实测尺寸仍是整屏值（字号、位置计算与全屏时完全一致）。
+    /// </summary>
+    public ScaleTransform PreviewScaleTransform { get; } =
+        new(PluginSettings.PreviewRenderScale, PluginSettings.PreviewRenderScale);
 
     /// <summary>
     /// 按大屏所在显示器的长宽比定预览尺寸。用逻辑尺寸（物理 ÷ 缩放）而不是物理像素：
@@ -170,6 +196,8 @@ public partial class SettingsPage : SettingsPageBase, INotifyPropertyChanged
             _previewSize = new Size(1920, 1080);   // 取不到就按最常见的班级大屏来
         }
 
+        OnPropertyChanged(nameof(PreviewSourceWidth));
+        OnPropertyChanged(nameof(PreviewSourceHeight));
         OnPropertyChanged(nameof(PreviewWidth));
         OnPropertyChanged(nameof(PreviewHeight));
     }

@@ -146,28 +146,15 @@ public partial class SettingsPage
         OnPropertyChanged(nameof(RainColorHex));
     }
 
-    public bool ShowDecibelMeter
-    {
-        get => _settings.ShowDecibelMeter;
-        set { _settings.ShowDecibelMeter = value; OnPropertyChanged(nameof(ShowDecibelMeter)); }
-    }
-
-    public bool ShowCourseInfo
-    {
-        get => _settings.ShowCourseInfo;
-        set { _settings.ShowCourseInfo = value; OnPropertyChanged(nameof(ShowCourseInfo)); }
-    }
+    // ShowDecibelMeter / ShowCourseInfo / ShowNoisyCounter 三个包装属性已删除：
+    // 组件化之后显隐由各组件自己的 Enabled 管，XAML 里已经没有绑定，留着只会让人以为还有一条生效路径。
+    // 设置对象上的同名字段仍然保留——它们是「老配置 → 组件启用」迁移的输入（见 MigrateLegacyComponentVisibility）。
+    // ShowBellTime 是例外：课程信息那一行里「显示打铃时间」仍是生效设置，XAML 还在绑它。
 
     public bool ShowBellTime
     {
         get => _settings.ShowBellTime;
         set { _settings.ShowBellTime = value; OnPropertyChanged(nameof(ShowBellTime)); }
-    }
-
-    public bool ShowNoisyCounter
-    {
-        get => _settings.ShowNoisyCounter;
-        set { _settings.ShowNoisyCounter = value; OnPropertyChanged(nameof(ShowNoisyCounter)); }
     }
 
     // ===== 提醒面板开关 =====
@@ -283,6 +270,65 @@ public partial class SettingsPage
     }
 
     public string MinimizePauseMinutesText => $"{_settings.MinimizePauseMinutes} 分钟";
+
+    // ===== 主题色（1.4.0.0）=====
+    //
+    // 强调色由 platform 侧从 ClassIsland 主题读取后写进 PluginSettings.ThemeAccentColor，这里只负责展示。
+    // 取不到值（CI 主题服务不可用 / 老配置为空）不算错误：色块退回插件自带的默认蓝，并把回退方式
+    // 写在说明里 —— 用户看到颜色没变时能知道是「回退了」而不是「坏了」。
+
+    /// <summary>
+    /// 主题色是否跟随 ClassIsland。打开时由 platform 侧在启动与 CI 主题切换时抄强调色，
+    /// 这里只落开关值；关掉后沿用已有的 <see cref="PluginSettings.ThemeAccentColor"/>（空则用默认蓝）。
+    /// </summary>
+    public bool FollowClassIslandAccent
+    {
+        get => _settings.FollowClassIslandAccent;
+        set
+        {
+            if (_settings.FollowClassIslandAccent == value) return;
+            _settings.FollowClassIslandAccent = value;
+            NotifyThemeAccentChanged();
+        }
+    }
+
+    /// <summary>ClassIsland 本身的默认强调色：跟随开关打开、但还没取到 CI 颜色时拿它兜底，免得色块是空的。</summary>
+    private static readonly Color DefaultAccent = Color.FromRgb(0x00, 0x78, 0xD4);
+
+    private Color AccentColorValue => string.IsNullOrWhiteSpace(_settings.ThemeAccentColor)
+        ? DefaultAccent
+        : DisplayColor(_settings.ThemeAccentColor);
+
+    /// <summary>主题色预览色块。不直接绑 ColorPicker：强调色是只读展示，写回由 platform 的读取逻辑负责。</summary>
+    public IBrush ThemeAccentBrush => new SolidColorBrush(AccentColorValue);
+
+    /// <summary>当前生效的强调色文本；还没取到值时说明「自动 / 默认」，别让用户对着空色块猜。</summary>
+    public string ThemeAccentText
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(_settings.ThemeAccentColor))
+                return ToHexRgb(AccentColorValue);
+            return _settings.FollowClassIslandAccent ? "自动（未取到值时为默认蓝）" : "插件默认主题色";
+        }
+    }
+
+    /// <summary>回退说明：跟随打开时讲清「读不到就回退」，关掉时讲清「不再随 CI 变」。</summary>
+    public string ThemeAccentHint => _settings.FollowClassIslandAccent
+        ? "进入大屏与 CI 主题切换时从 ClassIsland 当前主题读取强调色；读取失败则用插件默认色。"
+        : "已关闭跟随：沿用当前强调色，不再随 ClassIsland 主题变化。";
+
+    /// <summary>
+    /// 强调色 / 跟随开关变了（含 platform 侧写回设置）时，把这一组的绑定全部重发一次。
+    /// 这几个属性是转发到 settings 的包装器，settings 变了它们自己不会发通知。
+    /// </summary>
+    private void NotifyThemeAccentChanged()
+    {
+        OnPropertyChanged(nameof(FollowClassIslandAccent));
+        OnPropertyChanged(nameof(ThemeAccentBrush));
+        OnPropertyChanged(nameof(ThemeAccentText));
+        OnPropertyChanged(nameof(ThemeAccentHint));
+    }
 
     // ===== 外观颜色（HSV 颜色选择器，Avalonia.Controls.ColorPicker 双向绑定） =====
 

@@ -32,6 +32,7 @@ using ClassIsland.Core;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Icons;
 using ClassIsland.Core.Models.Components;
+using ClassIsland.Core.Models.Theming;
 using ClassIsland.Shared.Enums;
 using LargeScreenClockRevived.Helpers;
 using LargeScreenClockRevived.Models;
@@ -50,7 +51,6 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     private readonly IServiceProvider _serviceProvider;
     private readonly EarthquakeReader _earthquakeReader;
     private readonly NoiseCounter _counter = new();
-    private readonly Lazy<IExactTimeService?> _exactTimeService;
     private System.Timers.Timer? _updateTimer;
     private FullScreenClockWindow? _window;
 
@@ -95,6 +95,16 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     private static readonly IBrush[] SlotReachedBrushesDark = BuildReachedBrushes(false);
     private static readonly IBrush[] SlotReachedBrushesLight = BuildReachedBrushes(true);
 
+    // 进度条与降水提醒的画刷缓存：这两个 getter 绑在界面上，主题/颜色/强调色变化时通知一次即可，
+    // 每次求值都 new SolidColorBrush 会让控件反复失效重绘（1.4 顺手修掉的每秒热点）。
+    private IBrush? _progressFillBrush;
+    private IBrush? _rainColorBrush;
+
+    /// <summary>CI 主题服务（订阅强调色变化用；宿主没提供时为 null，退化为打开大屏时读一次）。</summary>
+    private IThemeService? _ciThemeService;
+    private bool _ciThemeHooked;       // 已订阅 IThemeService.ThemeUpdated
+    private bool _ciResourcesHooked;   // 已订阅 Application.ResourcesChanged
+
     /// <summary>非当前档位文字的淡化程度：浅底上要比深底淡得少，否则整排字糊在背景里。</summary>
     private const double SlotFadeDark = 0.35;
     private const double SlotFadeLight = 0.5;
@@ -131,6 +141,7 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     private string _courseInfoText = "";
     private List<TimeSlot> _todaySlots = new();
     private DateTime _scheduleDate;   // _todaySlots 是哪一天的课表（跨天要重读）
+    private bool _loadingSchedule;    // 课表异步重载进行中：防止每秒的换天检查排队重入
     private System.Timers.Timer? _antiScreensaverTimer;
     private string _noisyDisplaySignature = "";
     private bool _showCountRules;
@@ -154,12 +165,13 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
         _serviceProvider = serviceProvider;
         _earthquakeReader = new EarthquakeReader(serviceProvider);
 
-        // 惰性缓存 IExactTimeService，避免每次调用查服务
-        _exactTimeService = new Lazy<IExactTimeService?>(() =>
-        {
-            try { return _serviceProvider.GetService<IExactTimeService>(); }
-            catch { return null; }
-        });
+        // 统一时间源先接上宿主：大屏读数、课程进度、打铃此后共用同一条时间轴。
+        // 解析是惰性的（首次取时间时才查 DI），宿主晚于插件就绪也不会错过。
+        CiTimeService.Attach(serviceProvider);
+
+        // 主题色跟随：订阅 CI 的主题服务与资源变化（换主题/换强调色时刷新大屏与预览）。
+        // 构造这一刻宿主可能还没完全就绪，所以订阅做成幂等的，打开大屏时再兜底一次。
+        EnsureCiThemeSubscribed();
 
         _decibelService.PropertyChanged += OnDecibelPropertyChanged;
         _decibelService.NoiseEventRaised += OnNoiseEventRaised;
@@ -172,17 +184,13 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// CI 的"虚拟本地时间"（含时间偏移），用于课程定位/保护计时。
-    /// 大时钟显示仍用真实北京时间，学生看到的是准确时间。
+    /// CI 的「虚拟本地时间」（含时间偏移），课程定位/保护计时/打铃都用它。
+    ///
+    /// 1.4.0.0 起大屏读数也走同一条时间轴（<see cref="CiTimeService"/>）：
+    /// 以前读数用本机时间、课程用虚拟时间，时间偏移不为 0 时读数与进度/打铃对不齐。
+    /// 偏移为 0 时 CiTimeService.Now == DateTime.Now，所以默认设置下行为与 1.3.1.1 一致。
     /// </summary>
-    private DateTime NowVirtual
-    {
-        get
-        {
-            try { return _exactTimeService.Value?.GetCurrentLocalDateTime() ?? DateTime.Now; }
-            catch { return DateTime.Now; }
-        }
-    }
+    private DateTime NowVirtual => CiTimeService.Now;
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
@@ -264,6 +272,20 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
             if (_settings.BackgroundEnabled && _settings.BackgroundThemeMode == (int)BackgroundThemeMode.Auto)
                 Dispatcher.UIThread.Post(ApplyThemePalette);
         }
+        else if (args.PropertyName is nameof(PluginSettings.FollowClassIslandAccent))
+        {
+            // 关掉「跟随 CI 主题色」→ 立刻把抄来的强调色清空：设置页显示「回退主题自带色」，
+            // 配色彻底回到 1.3.1.1。重新打开 → 当场再读一次 CI 的强调色。
+            ClockThemeApplier.SyncAccent(_settings, _settings.FollowClassIslandAccent ? CiThemeReader.TryReadAccentColor() : null);
+            _progressFillBrush = null;
+            OnPropertyChanged(nameof(ProgressFillBrush));
+        }
+        else if (args.PropertyName is nameof(PluginSettings.ThemeAccentColor))
+        {
+            // 强调色（CI 同步或设置页手改）变了：进度条色可能换人，丢掉画刷缓存重新算
+            _progressFillBrush = null;
+            OnPropertyChanged(nameof(ProgressFillBrush));
+        }
         else if (args.PropertyName is nameof(PluginSettings.ThemeMode))
         {
             // 设置页里切了主题（颜色已被设置页改写）→ 大屏时钟正开着也立刻换配色
@@ -278,19 +300,19 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     public string CurrentTime
     {
         get => _currentTime;
-        set { _currentTime = value; OnPropertyChanged(); }
+        set => SetProperty(ref _currentTime, value);
     }
 
     public string CurrentDate
     {
         get => _currentDate;
-        set { _currentDate = value; OnPropertyChanged(); }
+        set => SetProperty(ref _currentDate, value);
     }
 
     public string CurrentCourseName
     {
         get => _currentCourseName;
-        set { _currentCourseName = value; OnPropertyChanged(); }
+        set => SetProperty(ref _currentCourseName, value);
     }
 
     public bool IsWindowVisible
@@ -326,14 +348,19 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     /// <summary>读不到 CI 字体设置时的回退（原来的窗口字体）。</summary>
     private const string DefaultClockFont = "Microsoft YaHei UI, SimHei, sans-serif";
 
-    /// <summary>进度条「已进行」部分颜色（深色，不透明）。</summary>
-    public IBrush ProgressFillBrush => new SolidColorBrush(Color.Parse(ProgressColor));
+    /// <summary>
+    /// 进度条「已进行」部分颜色。跟随 CI 强调色且用户没改过进度条色时，这里拿到的是强调色
+    /// （判据见 <see cref="ClockThemeApplier.ResolveProgressColor(PluginSettings)"/> 的重载）。
+    /// 画刷实例缓存复用：这个 getter 被绑定，每次 new 画刷都会让控件反复失效重绘。
+    /// </summary>
+    public IBrush ProgressFillBrush
+        => _progressFillBrush ??= new SolidColorBrush(Color.Parse(ClockThemeApplier.ResolveProgressColor(_settings)));
 
     /// <summary>进度带「未进行」部分颜色（随主题：深色底上的低饱和深蓝 / 浅色底上的浅灰蓝）。</summary>
     public IBrush ProgressTrackBrush => Chrome.VolumeTrack;
 
-    /// <summary>降水提醒色（设置项，默认蓝）：降雨提醒块用它，颜色可在设置里调。</summary>
-    public IBrush RainColorBrush => new SolidColorBrush(Color.Parse(RainColor));
+    /// <summary>降水提醒色（设置项，默认蓝）：降雨提醒块用它，颜色可在设置里调。画刷实例缓存复用。</summary>
+    public IBrush RainColorBrush => _rainColorBrush ??= new SolidColorBrush(Color.Parse(RainColor));
 
     /// <summary>当前天气是不是降水类（按 CI 天气码判断；雾/霾/沙尘不算）。</summary>
     private bool IsPrecipitationWeather => _weatherCode is { } code && CiWeatherReader.RainCodes.Contains(code);
@@ -370,9 +397,14 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     private void RefreshChrome()
     {
         Chrome = ClockBrushes.From(ClockThemeApplier.ResolvePalette(_settings, CiIsDark));
+        // 主题/强调色都可能在两次刷新之间变过：丢掉画刷缓存，下次求值按新颜色重建
+        _progressFillBrush = null;
+        _rainColorBrush = null;
         OnPropertyChanged(nameof(Chrome));
         OnPropertyChanged(nameof(NoiseLevelTrackBrush));
         OnPropertyChanged(nameof(ProgressTrackBrush));
+        OnPropertyChanged(nameof(ProgressFillBrush));
+        OnPropertyChanged(nameof(RainColorBrush));
         OnPropertyChanged(nameof(WeatherBrush));   // 非降水天气的天气块用主题正文色，换主题要跟着变
         RefreshSemanticColors();
     }
@@ -425,9 +457,90 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
     /// </summary>
     private void ApplyThemePalette()
     {
+        // 先同步 CI 强调色（只写 ThemeAccentColor），再套调色板：进度条色依赖它，
+        // 顺序反了会让「换强调色」要等下一次刷新才生效。
+        SyncAccentFromCi();
         var colorsChanged = ClockThemeApplier.Apply(_settings, CiIsDark);
         RefreshChrome();
         if (colorsChanged) RefreshAppearanceBindings();
+    }
+
+    /// <summary>
+    /// 从 CI 读一次强调色并单向写进设置（<see cref="PluginSettings.ThemeAccentColor"/>）。
+    /// 返回 true 表示强调色变了。读不到强调色时 <see cref="ClockThemeApplier.SyncAccent"/> 会把
+    /// ThemeAccentColor 清空 —— 配色完全回退到本插件主题自带的那套。
+    /// </summary>
+    private bool SyncAccentFromCi()
+    {
+        try { return ClockThemeApplier.SyncAccent(_settings, CiThemeReader.TryReadAccentColor()); }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 订阅 CI 主题变化（换主题 / 换强调色）。幂等：宿主服务或 Avalonia Application
+    /// 晚于本 VM 构造就绪时，打开大屏会再补订一次。
+    /// 两个信号任一到达都够用：ThemeUpdated 是 CI 明确通知，ResourcesChanged 兜住
+    /// 「只换强调色、没走主题切换流程」的情况。
+    /// </summary>
+    private void EnsureCiThemeSubscribed()
+    {
+        if (!_ciThemeHooked)
+        {
+            try
+            {
+                _ciThemeService ??= _serviceProvider.GetService<IThemeService>();
+                if (_ciThemeService is not null)
+                {
+                    _ciThemeService.ThemeUpdated += OnCiThemeUpdated;
+                    _ciThemeHooked = true;
+                }
+            }
+            catch { /* 拿不到主题服务：退化为打开大屏/预览时各读一次（ApplyThemePalette 里就是） */ }
+        }
+
+        if (!_ciResourcesHooked)
+        {
+            try
+            {
+                if (Application.Current is { } app)
+                {
+                    app.ResourcesChanged += OnCiResourcesChanged;
+                    _ciResourcesHooked = true;
+                }
+            }
+            catch { }
+        }
+    }
+
+    /// <summary>CI 主题变化（明暗 / 强调色）→ 大屏正开着就立刻换配色，与设置页预览同步。</summary>
+    private void OnCiThemeUpdated(object? sender, ThemeUpdatedEventArgs e)
+    {
+        // 可能来自 CI 的后台线程：读资源与改画刷都排回 UI 线程
+        CiThemeReader.Invalidate();
+        Dispatcher.UIThread.Post(() =>
+        {
+            try { ApplyThemePalette(); }
+            catch { /* 主题服务给的时机不一定落在可用状态，失败就等下一次刷新 */ }
+        });
+    }
+
+    /// <summary>
+    /// CI 资源重建（换主题/换强调色都会触发）。只在强调色真的变了时刷新，
+    /// 否则 CI 任何资源变动都会把大屏整体重排一遍，白费性能。
+    /// </summary>
+    private void OnCiResourcesChanged(object? sender, ResourcesChangedEventArgs e)
+    {
+        CiThemeReader.Invalidate();
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (!SyncAccentFromCi()) return;
+                RefreshChrome();
+                RefreshAppearanceBindings();
+            }
+            catch { }
+        });
     }
 
     /// <summary>刷新时钟字体：重新读 CI 设置里的主界面字体（用户可能在 CI 里改过）。</summary>
@@ -522,10 +635,26 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
         RefreshChrome();
         RefreshAppearanceBindings();
         RefreshClockFont();
-        RefreshRemindersNow();
+        // 只重读 CI 组件配置（内存数据）；天气那路要读 CI 的 Settings.json 磁盘文件，
+        // 预览每 200ms 刷新一次，放这里等于把「重复读盘」热点重新引回来。
+        // 天气/预警本来就有 60s 定时刷新，设置开关变化也各自走 OnSettingsPropertyChanged。
+        RefreshComponents();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// 只在值真的变化时才发通知。1s 刷新循环里大部分属性（日期、课名、倒计时文案）每秒算出的
+    /// 是同一个值，无条件通知会让绑定每秒重排一次——这就是「大屏有微弱掉帧」的来源之一。
+    /// </summary>
+    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

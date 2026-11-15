@@ -132,14 +132,20 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
 
         if (weather)
         {
-            var used = IconWidth(24) + 6 + TextWidth(WeatherText, 24);
+            var used = IconWidth(ComponentFontSizeOf("weather")) + 6 + TextWidthFor("weather", WeatherText);
             // 合并优先级：降雨提醒 > 倒计时 > 文本
-            TryMerge(used, rain, rain ? IconWidth(24) + 6 + TextWidth(RainReminderTitle, 24) : 0,
+            TryMerge(used, rain, rain ? IconWidth(ComponentFontSizeOf("rainMerge")) + 6 + TextWidthFor("rainMerge", RainReminderTitle) : 0,
                 spacing, threshold, ref used, ref rainMerged);
-            TryMerge(used, countdown, countdown ? IconWidth(24) + 6 + TextWidth(CountdownText, 24) : 0,
+            TryMerge(used, countdown, countdown ? IconWidth(ComponentFontSizeOf("countdownMerge")) + 6 + TextWidthFor("countdownMerge", CountdownText) : 0,
                 spacing, threshold, ref used, ref countdownMerged);
-            TryMerge(used, text, text ? TextWidth(ReminderText, 24) : 0,
+            TryMerge(used, text, text ? TextWidthFor("textMerge", ReminderText) : 0,
                 spacing, threshold, ref used, ref textMerged);
+        }
+        else if (rain)
+        {
+            // 没有天气时降雨才是第一行的主位（README：降雨 > 倒计时 > 文本）。
+            // 旧实现把降雨合并写死在 weather 分支里，无天气时降雨永远进不了第一行。
+            rainMerged = true;
         }
         else if (countdown)
         {
@@ -316,7 +322,8 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
         string? s = null;
         if (_settings.ShowEmojiSubtitles)
         {
-            var now = DateTime.Now;
+            // 副标题挂在显示的日期下面，用与读数相同的 CI 时间轴，免得零点前后两者对不上
+            var now = CiTimeService.Now;
             if (now.DayOfWeek == DayOfWeek.Thursday) s = "撑住！明天就能回家了！ (๑•̀ㅂ•́)و";
             else if (now.Day == 1) s = "新的一个月，加油 (ง •̀_•́)ง";
         }
@@ -344,12 +351,31 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
         return double.TryParse(s, out var v) ? v : null;
     }
 
-    /// <summary>用 TextLayout 独立测量文本实际渲染宽度（不依赖可视树布局，中英文混合也准确）。</summary>
-    private static double TextWidth(string? s, double fontSize)
+    /// <summary>
+    /// 用 TextLayout 独立测量文本实际渲染宽度（不依赖可视树布局，中英文混合也准确）。
+    /// 字体族可传：1.4.0.0 起组件能单独设字体，第一行合并判定必须用同一个字体量，
+    /// 否则「用户把字体换成更宽的一支」之后，估算与实际渲染会对不上。
+    /// </summary>
+    private static double TextWidth(string? s, double fontSize, string? fontFamily = null)
         => string.IsNullOrEmpty(s)
             ? 0
-            : new TextLayout(s, new Typeface("Microsoft YaHei"), fontSize,
-                null, TextAlignment.Left, TextWrapping.NoWrap).Width;
+            : new TextLayout(s,
+                new Typeface(string.IsNullOrWhiteSpace(fontFamily) ? "Microsoft YaHei" : fontFamily),
+                fontSize, null, TextAlignment.Left, TextWrapping.NoWrap).Width;
+
+    /// <summary>组件实际字号：组件自己设了字号用它的，否则用默认的两级字号之一（这里默认 24）。</summary>
+    private double ComponentFontSizeOf(string componentId, double fallback = 24)
+    {
+        var size = _settings.GetComponentLayout(componentId).FontSize;
+        return size > 0 ? size : fallback;
+    }
+
+    /// <summary>按组件自己的字体族 + 字号量文本宽度（组件没设就等价于原来的固定测量）。</summary>
+    private double TextWidthFor(string componentId, string? s)
+    {
+        var layout = _settings.GetComponentLayout(componentId);
+        return TextWidth(s, ComponentFontSizeOf(componentId), layout.FontFamily);
+    }
 
     /// <summary>
     /// 矢量图标宽度：Lucide 图标为正方形，字宽≈字号（不能用 TextWidth 量——图标字形落在

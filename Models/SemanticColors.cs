@@ -9,11 +9,13 @@ public static class SemanticColors
 {
     /// <summary>
     /// 「一般」计数与「正在记录：一般」提示的颜色：与音量条「一般」档**达到时**的档位文字同色
-    /// （<see cref="LargeScreenClockRevived.ViewModels.LevelSlotCalculator.ReachedColorOf"/>，即填充色第 3 项），
-    /// 两套主题同一支亮黄；未达到一般时档位文字是压暗的琥珀，两者不会混淆。
-    /// 注意它本身很亮，#FFDE02 当文字放白底上对比度不足，改前先看真机。
+    /// （<see cref="LargeScreenClockRevived.ViewModels.LevelSlotCalculator.ReachedColorOf"/>，即填充色第 3 项）。
+    ///
+    /// 暗底用亮黄 #FFDE02；亮底（浅色壁纸/白底）上这支黄的对比度只有约 1.4:1，和背景几乎糊在一起，
+    /// 故浅底换成同色相压暗的琥珀（与预警/地震的浅底版本同一处理）。这是在 1.4.0.0 的
+    /// 「总体检查」里补掉的历史遗留：方法早就有 light 参数，之前却恒返回同一个值。
     /// </summary>
-    public static string CountNormalHex(bool light) => "#FFDE02";
+    public static string CountNormalHex(bool light) => light ? "#B58900" : "#FFDE02";
 
     /// <summary>「吵闹」计数与「正在记录：吵闹」提示的红色。</summary>
     public static string CountNoisyHex(bool light) => light ? "#C62828" : "#FF5555";

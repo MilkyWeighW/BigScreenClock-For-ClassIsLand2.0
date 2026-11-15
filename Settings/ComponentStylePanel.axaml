@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls2="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
+             x:Class="LargeScreenClockRevived.Settings.ComponentStylePanel">
+
+    <!-- 组件外观面板：长宽比 / 字体 / 文字材质。
+         自己从 Plugin.Settings 取当前选中组件的布局（选中项由 SettingsPage 通过
+         SettingsPage.SelectedComponent 冒泡过来，本面板自己找到宿主页订阅，不需要页面再接线）。
+         默认值下全部是「默认」，改回默认即逐像素回到 1.3.1.1 的外观。 -->
+    <controls2:SettingsExpander x:Name="PanelRoot"
+                                Header="外观（长宽比 / 字体 / 文字材质）"
+                                Description="只作用于当前选中的组件；默认值下与 1.3.1.1 完全一致。"
+                                IsExpanded="True" Margin="0 12 0 0">
+
+        <StackPanel Spacing="4">
+
+            <!-- 长宽比：横向/纵向分别拉伸，与「大小」相乘（0.1~3，1 = 原始比例）。
+                 用 RenderTransform，拉宽压窄都不会把邻居挤走。 -->
+            <controls2:SettingsExpanderItem Content="横向拉伸"
+                                            Description="1 = 原始宽度；与「大小」相乘。">
+                <controls2:SettingsExpanderItem.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="180" Minimum="0.1" Maximum="3" TickFrequency="0.1"
+                                Value="{Binding StretchX, Mode=TwoWay}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding StretchXText}" FontSize="12" Width="52"
+                                   TextAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                    </StackPanel>
+                </controls2:SettingsExpanderItem.Footer>
+            </controls2:SettingsExpanderItem>
+
+            <controls2:SettingsExpanderItem Content="纵向拉伸"
+                                            Description="1 = 原始高度；与「大小」相乘。">
+                <controls2:SettingsExpanderItem.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="180" Minimum="0.1" Maximum="3" TickFrequency="0.1"
+                                Value="{Binding StretchY, Mode=TwoWay}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding StretchYText}" FontSize="12" Width="52"
+                                   TextAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                    </StackPanel>
+                </controls2:SettingsExpanderItem.Footer>
+            </controls2:SettingsExpanderItem>
+
+            <!-- 字体：作用于组件里的每一段文字；空 = 跟随大屏默认字体。 -->
+            <controls2:SettingsExpanderItem Content="字体"
+                                            Description="组件内所有文字；默认跟随大屏字体。">
+                <controls2:SettingsExpanderItem.Footer>
+                    <ComboBox Width="190" ItemsSource="{Binding FontFamilyOptions}"
+                              SelectedItem="{Binding FontFamilyOption, Mode=TwoWay}"
+                              VerticalAlignment="Center"/>
+                </controls2:SettingsExpanderItem.Footer>
+            </controls2:SettingsExpanderItem>
+
+            <controls2:SettingsExpanderItem Content="字号"
+                                            Description="0 = 用组件自己的字号（时钟/课程等仍跟随各自的大屏字号）。">
+                <controls2:SettingsExpanderItem.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="180" Minimum="0" Maximum="400" TickFrequency="10"
+                                Value="{Binding ComponentFontSize, Mode=TwoWay}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding ComponentFontSizeText}" FontSize="12" Width="52"
+                                   TextAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                    </StackPanel>
+                </controls2:SettingsExpanderItem.Footer>
+            </controls2:SettingsExpanderItem>
+
+            <controls2:SettingsExpanderItem Content="字重"
+                                            Description="默认 = 保持组件原本的粗细。">
+                <controls2:SettingsExpanderItem.Footer>
+                    <ComboBox Width="150" SelectedIndex="{Binding FontWeightIndex, Mode=TwoWay}"
+                              VerticalAlignment="Center">
+                        <ComboBoxItem Content="默认"/>
+                        <ComboBoxItem Content="细体 300"/>
+                        <ComboBoxItem Content="常规 400"/>
+                        <ComboBoxItem Content="中等 500"/>
+                        <ComboBoxItem Content="半粗 600"/>
+                        <ComboBoxItem Content="粗体 700"/>
+                        <ComboBoxItem Content="特粗 800"/>
+                        <ComboBoxItem Content="黑体 900"/>
+                    </ComboBox>
+                </controls2:SettingsExpanderItem.Footer>
+            </controls2:SettingsExpanderItem>
+
+            <!-- 文字材质：只垫在文字外框下面，不铺满整块组件。 -->
+            <controls2:SettingsExpanderItem Content="文字材质"
+                                            Description="只覆盖文字外框。磨砂/液态玻璃在透明窗口（原生模糊）下效果最好，其它背景会退回静态近似。">
+                <controls2:SettingsExpanderItem.Footer>
+                    <ComboBox Width="150" SelectedIndex="{Binding TextMaterialIndex, Mode=TwoWay}"
+                              VerticalAlignment="Center">
+                        <ComboBoxItem Content="无"/>
+                        <ComboBoxItem Content="磨砂"/>
+                        <ComboBoxItem Content="液态玻璃"/>
+                    </ComboBox>
+                </controls2:SettingsExpanderItem.Footer>
+            </controls2:SettingsExpanderItem>
+
+            <Button Content="恢复默认外观" HorizontalAlignment="Left" Padding="12,6" Margin="0 6 0 6"
+                    CornerRadius="6" Cursor="Hand" Click="Reset_Click"/>
+
+        </StackPanel>
+    </controls2:SettingsExpander>
+</UserControl>

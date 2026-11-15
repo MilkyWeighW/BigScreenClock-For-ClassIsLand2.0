@@ -8,7 +8,7 @@
         ShowInTaskbar="True"
         CanResize="False"
         Topmost="True"
-        Background="{Binding BackgroundColor}">
+        Background="Transparent">
 
     <!-- 内容全在 ClockSurface 里：设置页的预览放的是同一个控件，只把 IsPreview 打开。
          窗口这边只管窗口自己的事（全屏、躲鼠标、Esc/F11 退出）。 -->

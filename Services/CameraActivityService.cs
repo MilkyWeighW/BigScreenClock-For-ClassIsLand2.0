@@ -139,9 +139,17 @@ public sealed class CameraActivityService : IDisposable
                     if (ptr == IntPtr.Zero) continue;
 
                     var activate = (IMFActivate)Marshal.GetObjectForIUnknown(ptr);
-                    var name = AttrString(activate, PInvoke.MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME).Trim();
-                    var link = AttrString(activate, PInvoke.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK).Trim();
-                    if (name.Length > 0) devices.Add(new CameraDevice(name, link));
+                    try
+                    {
+                        var name = AttrString(activate, PInvoke.MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME).Trim();
+                        var link = AttrString(activate, PInvoke.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK).Trim();
+                        if (name.Length > 0) devices.Add(new CameraDevice(name, link));
+                    }
+                    finally
+                    {
+                        // 上面 GetObjectForIUnknown 拿到的 RCW 由我们持有，用完放掉
+                        ReleaseCom(activate);
+                    }
                 }
             }
             finally
@@ -179,30 +187,46 @@ public sealed class CameraActivityService : IDisposable
                 report.GetActivityReport(i, out var device);
                 if (device == null) continue;
 
-                var name = ReadString(device.GetFriendlyName).Trim();
-                var link = ReadString(device.GetSymbolicLink).Trim();
-                if (name.Length == 0 && link.Length == 0) continue;
-
-                // 一个设备可能被多个进程用（如相机 App + 后台预览）；优先记「正在推流」的那个
-                string? process = null;
-                device.GetProcessCount(out var processCount);
-                for (uint j = 0; j < processCount; j++)
+                // 每台设备/每条进程活动都是 COM 接口：回调频率不低，用完必须放，
+                // 否则长期开着大屏时钟会一直累积 RCW（1.4 清理项）。
+                try
                 {
-                    device.GetProcessActivity(j, out var activity);
-                    if (activity == null) continue;
+                    var name = ReadString(device.GetFriendlyName).Trim();
+                    var link = ReadString(device.GetSymbolicLink).Trim();
+                    if (name.Length == 0 && link.Length == 0) continue;
 
-                    activity.GetProcessId(out var pid);
-                    var processName = ProcessName(pid);
-                    activity.GetStreamingState(out var streaming);
-                    if (streaming)
+                    // 一个设备可能被多个进程用（如相机 App + 后台预览）；优先记「正在推流」的那个
+                    string? process = null;
+                    device.GetProcessCount(out var processCount);
+                    for (uint j = 0; j < processCount; j++)
                     {
-                        process = processName;
-                        break;
-                    }
-                    process ??= processName;   // 只打开没推流（暂停预览等）也算占用
-                }
+                        device.GetProcessActivity(j, out var activity);
+                        if (activity == null) continue;
 
-                if (process != null) list.Add(new CameraActivity(name, link, process));
+                        try
+                        {
+                            activity.GetProcessId(out var pid);
+                            var processName = ProcessName(pid);
+                            activity.GetStreamingState(out var streaming);
+                            if (streaming)
+                            {
+                                process = processName;
+                                break;
+                            }
+                            process ??= processName;   // 只打开没推流（暂停预览等）也算占用
+                        }
+                        finally
+                        {
+                            ReleaseCom(activity);
+                        }
+                    }
+
+                    if (process != null) list.Add(new CameraActivity(name, link, process));
+                }
+                finally
+                {
+                    ReleaseCom(device);
+                }
             }
         }
         catch (Exception ex)
@@ -226,8 +250,21 @@ public sealed class CameraActivityService : IDisposable
 
     private static string ProcessName(uint pid)
     {
-        try { return Process.GetProcessById((int)pid).ProcessName; }
+        // 用 using：Process 占着本机进程句柄，这个回调每上报一次就查一次进程名。
+        // 不释放的话句柄会随「开大屏时钟 → 关 → 再开」一路涨（1.4 清理项）。
+        try
+        {
+            using var process = Process.GetProcessById((int)pid);
+            return process.ProcessName;
+        }
         catch { return "未知程序"; }   // 进程已退出/受保护进程读不到名字
+    }
+
+    /// <summary>释放 COM RCW（已释放/非 COM 对象时静默忽略）：MF 的接口不手动放会一直挂在进程里。</summary>
+    private static void ReleaseCom(object? com)
+    {
+        try { if (com is not null && Marshal.IsComObject(com)) Marshal.ReleaseComObject(com); }
+        catch { /* 已释放 / 生命周期由别人持有，忽略 */ }
     }
 
     /// <summary>读 IMFActivate 上的字符串属性（MF 分配的内存要自己释放）。</summary>
@@ -275,6 +312,9 @@ public sealed class CameraActivityService : IDisposable
     {
         StopMonitoring();
 
+        // 监视器是真正的 COM 接口，只置 null 不会减少引用计数：反复进出大屏时钟时
+        // MF 会一直以为监视器还在（1.4 清理项）。回调是托管对象（CCW），由 GC 回收，不在此列。
+        ReleaseCom(_monitor);
         _monitor = null;
         _callback = null;
 

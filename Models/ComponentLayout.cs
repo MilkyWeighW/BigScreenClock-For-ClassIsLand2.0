@@ -38,12 +38,85 @@ public sealed class ComponentLayout : INotifyPropertyChanged
     /// <summary>不透明度上限（1 = 完全不透明）。</summary>
     public const double MaxOpacity = 1.0;
 
+    /// <summary>非等比拉伸下限（0.1 = 横向压到一成）。</summary>
+    public const double MinStretch = 0.1;
+
+    /// <summary>非等比拉伸上限（3 = 横向拉到三倍）。</summary>
+    public const double MaxStretch = 3.0;
+
+    /// <summary>文字材质（0 无 / 1 磨砂 / 2 液态玻璃，见 <see cref="TextMaterialMode"/>）。</summary>
+    public const int MinTextMaterial = 0;
+
+    /// <summary>文字材质最大档位。</summary>
+    public const int MaxTextMaterial = 2;
+
     private double _scale = 1.0;
     private double _offsetX;
     private double _offsetY;
     private bool _enabled = true;
     private int? _order;
     private double _opacity = 1.0;
+    private double _stretchX = 1.0;
+    private double _stretchY = 1.0;
+    private string _fontFamily = "";
+    private double _fontSize;
+    private int _fontWeight;
+    private int _textMaterial;
+
+    /// <summary>
+    /// 横向拉伸（长宽比的一半）：1 = 原始宽度，0.1~3。与 <see cref="Scale"/> 相乘，
+    /// 用来单独把组件拉宽/压窄（比如把时钟拉成 16:9 的横幅）。
+    /// </summary>
+    public double StretchX
+    {
+        get => _stretchX;
+        set => Set(ref _stretchX, Math.Clamp(value, MinStretch, MaxStretch));
+    }
+
+    /// <summary>纵向拉伸：1 = 原始高度，0.1~3。与 <see cref="Scale"/> 相乘。</summary>
+    public double StretchY
+    {
+        get => _stretchY;
+        set => Set(ref _stretchY, Math.Clamp(value, MinStretch, MaxStretch));
+    }
+
+    /// <summary>
+    /// 组件内文字使用的字体族（FontFamily 名字，空 = 跟随大屏默认字体）。
+    /// 由 <see cref="Views.ComponentHost"/> 施加给组件里的每一段文字。
+    /// </summary>
+    public string FontFamily
+    {
+        get => _fontFamily;
+        set => Set(ref _fontFamily, value ?? "");
+    }
+
+    /// <summary>
+    /// 组件内文字字号（像素，0 = 用组件自己的默认字号）。只影响文字，不影响图标与间距。
+    /// </summary>
+    public double FontSize
+    {
+        get => _fontSize;
+        set => Set(ref _fontSize, Math.Clamp(value, 0, 400));
+    }
+
+    /// <summary>
+    /// 字重（100~900，0 = 跟随默认）。400 = 常规，700 = 粗体。
+    /// </summary>
+    public int FontWeight
+    {
+        get => _fontWeight;
+        set => Set(ref _fontWeight, value <= 0 ? 0 : Math.Clamp(value, 100, 900));
+    }
+
+    /// <summary>
+    /// 组件文字材质（0 无 / 1 磨砂 / 2 液态玻璃，见 <see cref="TextMaterialMode"/>）。
+    /// 只覆盖文字外框，不铺满组件整块范围。
+    /// </summary>
+    public int TextMaterial
+    {
+        get => _textMaterial;
+        set => Set(ref _textMaterial, Math.Clamp(value, MinTextMaterial, MaxTextMaterial));
+    }
 
     /// <summary>
     /// 整体缩放倍率：1 = 原始大小，0.1 = 缩到一成，2 = 放大一倍。
@@ -109,15 +182,30 @@ public sealed class ComponentLayout : INotifyPropertyChanged
         Math.Abs(Scale - 1) < 0.0001 &&
         Math.Abs(OffsetX) < 0.0001 &&
         Math.Abs(OffsetY) < 0.0001 &&
-        Math.Abs(Opacity - 1) < 0.0001;
+        Math.Abs(Opacity - 1) < 0.0001 &&
+        Math.Abs(StretchX - 1) < 0.0001 &&
+        Math.Abs(StretchY - 1) < 0.0001 &&
+        string.IsNullOrEmpty(FontFamily) &&
+        FontSize <= 0 &&
+        FontWeight == 0 &&
+        TextMaterial == 0;
 
-    /// <summary>恢复默认外观（大小 1、位置不动、不透明度 1）。不动启用状态与顺序——那是「显不显示/排第几」，不是外观。</summary>
+    /// <summary>
+    /// 恢复默认外观（大小 1、位置不动、不透明度 1、长宽比 1:1、无自定义字体/材质）。
+    /// 不动启用状态与顺序——那是「显不显示/排第几」，不是外观。
+    /// </summary>
     public void Reset()
     {
         Scale = 1.0;
         OffsetX = 0;
         OffsetY = 0;
         Opacity = 1.0;
+        StretchX = 1.0;
+        StretchY = 1.0;
+        FontFamily = "";
+        FontSize = 0;
+        FontWeight = 0;
+        TextMaterial = 0;
     }
 
     private void Set<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
@@ -138,7 +226,12 @@ public sealed class ComponentLayout : INotifyPropertyChanged
 /// <param name="Name">设置页显示的名字。</param>
 /// <param name="Description">设置页那行的小字说明。</param>
 /// <param name="Glyph">Fluent 图标码点（字形取自 ClassIsland 自带的 FluentSystemIcons 字体）。</param>
-public sealed record ComponentDescriptor(string Id, string Name, string Description, string Glyph);
+/// <param name="DefaultEnabled">
+/// 首次出现（老配置里还没有这一项）时默认开不打开。天气 / 日期 / 倒计时与 ClassIsland
+/// 主界面上的信息重合，1.4.0.0 起默认关掉，用户可在「组件」页签里重新加回来。
+/// </param>
+public sealed record ComponentDescriptor(
+    string Id, string Name, string Description, string Glyph, bool DefaultEnabled = true);
 
 /// <summary>
 /// 大屏组件的清单与默认描述。顺序就是设置页「组件」页签里的顺序，按元素在大屏上从上到下排。
@@ -152,10 +245,12 @@ public static class ComponentCatalog
     public static IReadOnlyList<ComponentDescriptor> All { get; } = new ComponentDescriptor[]
     {
         new("clock", "时钟", "大屏中央的时间数字。", "\uF361"),
-        new("date", "日期", "右上角的日期与副标题。", "\uE304"),
-        new("weather", "天气", "顶部左侧的天气图标、气温与字幕。", "\uF467"),
+        // 下面三项与 ClassIsland 主界面（顶部课表栏）上的信息重合：1.4.0.0 起默认隐藏，
+        // 老配置里已经显式开着的仍按用户的设置显示（迁移不覆盖 Enabled，只影响新补出来的布局）。
+        new("date", "日期", "右上角的日期与副标题。", "\uE304", DefaultEnabled: false),
+        new("weather", "天气", "顶部左侧的天气图标、气温与字幕。", "\uF467", DefaultEnabled: false),
         new("rainMerge", "降雨提醒（顶部）", "顶部那行里合并显示的「多久下雨」。", "\uF453"),
-        new("countdownMerge", "倒计时（顶部）", "顶部那行里合并显示的倒计时。", "\uE161"),
+        new("countdownMerge", "倒计时（顶部）", "顶部那行里合并显示的倒计时。", "\uE161", DefaultEnabled: false),
         new("textMerge", "文本提醒（顶部）", "顶部那行里合并显示的文本组件内容。", "\uE3E4"),
         new("alertDetail", "预警详情", "顶部中间横向滚动的预警详情（鼠标悬停或点击预警时出现）。", "\uE9E4"),
         new("reminderPanel", "提醒面板", "左上角整块提醒面板（天气、预警、倒计时、文本、降雨）。", "\uE025"),
@@ -167,7 +262,15 @@ public static class ComponentCatalog
         new("earthquake", "地震警报", "地震预警插件报警时整屏正中的提示块。", "\uE7C5"),
     };
 
-    /// <summary>按 id 找组件描述（找不到返回 null）。</summary>
+    /// <summary>按 id 找组件描述（找不到返回 null）。贴纸实例（<c>image:xxx</c>）也能找到一份合成出来的描述。</summary>
     public static ComponentDescriptor? Find(string id)
-        => All.FirstOrDefault(d => string.Equals(d.Id, id, StringComparison.Ordinal));
+    {
+        var found = All.FirstOrDefault(d => string.Equals(d.Id, id, StringComparison.Ordinal));
+        if (found is not null) return found;
+
+        if (ComponentIds.TryGetImageInstanceId(id, out _))
+            return new ComponentDescriptor(id, "贴纸", "自选图片（贴纸）。", "\uE9B2");
+
+        return null;
+    }
 }

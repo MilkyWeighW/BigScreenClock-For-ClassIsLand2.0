@@ -34,6 +34,22 @@ public static class WallpaperCacheService
     /// <summary>内存缓存条数。大屏只需要「当前壁纸 + 上一次壁纸」两条，再多纯占内存。</summary>
     private const int MemoryCacheCapacity = 2;
 
+    /// <summary>弱引用层条数上限：被 GC 收掉之前最多留这么多「可复活」的主副本。</summary>
+    private const int WeakCacheCapacity = 4;
+
+    /// <summary>内存缓存总字节硬上限：单张 4K 模糊图就可能 30MB+，光限制条数拦不住。</summary>
+    private const long MaxMemoryCacheBytes = 96L * 1024 * 1024;
+
+    /// <summary>
+    /// 模糊工作宽度上限。模糊图不需要按屏幕原宽解码：1600 宽的图被放大铺满 4K 屏，
+    /// 因为本来就糊、肉眼分辨不出；但 StackBlur 的耗时和内存都随像素数线性下降。
+    /// 半径为 0（用户要求不模糊）时仍按目标宽度解码，保持清晰度。
+    /// </summary>
+    private const int MaxBlurWorkingWidth = 1600;
+
+    /// <summary>像素预算系数：解码出的像素数最多是「目标尺寸 × 1.25」，绝不无限放大。</summary>
+    private const double PixelBudgetFactor = 1.25;
+
     private const string PngExtension = ".png";
 
     /// <summary>保护 <see cref="MemoryCache"/>；同时也保证克隆时主副本不会被并发逐出。</summary>
@@ -41,6 +57,13 @@ public static class WallpaperCacheService
 
     /// <summary>按 LRU 排列：索引 0 最新，末尾最旧。容量固定很小，用 List 比 LinkedList 更省事。</summary>
     private static readonly List<MemoryEntry> MemoryCache = new(MemoryCacheCapacity + 1);
+
+    /// <summary>
+    /// 弱引用层：<see cref="TrimMemoryCache"/> 把强引用条目降级到这里。
+    /// 大屏关掉后没人再需要整屏位图，但用户往往过几秒又打开：这时若 GC 还没收掉就能直接复活，
+    /// 省一次解码；被 GC 收掉也不丢正确性（磁盘缓存还在，最坏重新解码一次）。
+    /// </summary>
+    private static readonly List<WeakEntry> WeakCache = new(WeakCacheCapacity + 1);
 
     /// <summary>缓存目录只解析一次；<see cref="Lazy{T}"/> 默认线程安全即可。</summary>
     private static readonly Lazy<string> CacheDirectoryLazy = new(CreateCacheDirectory, LazyThreadSafetyMode.ExecutionAndPublication);
@@ -65,12 +88,14 @@ public static class WallpaperCacheService
         {
             ct.ThrowIfCancellationRequested();
 
-            // 键里已经带上「生效半径」，后续所有环节都用同一个值，避免 0.4 和 0.6 各算一遍
+            // 键里已经带上「生效半径」和「实际解码宽度」，后续所有环节都用这一组值：
+            // 避免 0.4 和 0.6 各算一遍，也避免同一半径但工作分辨率不同互相串味
             var effectiveRadius = Math.Clamp((int)Math.Round(blurRadius), 0, StackBlur.MaxRadius);
-            var cacheKey = BuildCacheKey(path, targetWidth, effectiveRadius);
+            var decodeWidth = ComputeDecodeWidth(targetWidth, effectiveRadius);
+            var cacheKey = BuildCacheKey(path, targetWidth, decodeWidth, effectiveRadius);
 
-            // 1) 内存命中：直接把主副本克隆一份给调用方
-            var memoryHit = TryTakeFromMemory(cacheKey);
+            // 1) 内存命中：直接把主副本克隆一份给调用方；强引用没有就看弱引用层是否还能复活
+            var memoryHit = TryTakeFromMemory(cacheKey) ?? TryTakeFromWeak(cacheKey);
             if (memoryHit != null) return memoryHit;
 
             var diskPath = GetDiskPath(cacheKey);
@@ -90,7 +115,8 @@ public static class WallpaperCacheService
             {
                 ct.ThrowIfCancellationRequested();
 
-                var wallpaper = WallpaperService.LoadWallpaper(path, targetWidth);
+                // 按「实际解码宽度」解码：模糊时用较小的工作分辨率，别对 4K 原图直接 StackBlur
+                var wallpaper = WallpaperService.LoadWallpaper(path, decodeWidth);
                 if (wallpaper == null) return null;
 
                 // LoadWallpaper 解码出来的中间位图没人再用了，模糊完立刻释放
@@ -164,15 +190,16 @@ public static class WallpaperCacheService
     }
 
     /// <summary>缓存键：完整路径 + mtime + 宽度 + 生效半径。Windows 路径里不可能出现 '|'，用它当分隔符安全。</summary>
-    private static string BuildCacheKey(string path, int targetWidth, int effectiveRadius)
+    private static string BuildCacheKey(string path, int targetWidth, int decodeWidth, int effectiveRadius)
     {
         // 相对路径在两台机器/两个工作目录下含义不同，先绝对化再进键
         var fullPath = Path.GetFullPath(path);
         // 文件被删时 mtime 是 1601 年，与真实文件的键必然不同，不会误命中旧缓存
         var lastWriteTicks = File.GetLastWriteTimeUtc(fullPath).Ticks;
 
-        // 全是整数/路径，不经过区域设置格式化，键在进程内稳定
-        return $"{fullPath}|{lastWriteTicks}|{targetWidth}|{effectiveRadius}";
+        // 全是整数/路径，不经过区域设置格式化，键在进程内稳定。
+        // decodeWidth 进键：同一半径但工作分辨率变了（比如换了屏幕）时必须重新生成。
+        return $"{fullPath}|{lastWriteTicks}|{targetWidth}|{decodeWidth}|{effectiveRadius}";
     }
 
     /// <summary>磁盘文件名：sha256(key) 前 16 字节的小写 hex（32 字符）+ .png，避免非法字符与大小写问题。</summary>
@@ -203,6 +230,96 @@ public static class WallpaperCacheService
         }
     }
 
+    /// <summary>
+    /// 弱引用层查找：命中且目标还活着就把它提升回强引用缓存（重新算字节数），再克隆给调用方；
+    /// 目标已被 GC 回收就把死条目清掉。全程在锁内做，避免复活的同时被别的线程逐出。
+    /// </summary>
+    private static Bitmap? TryTakeFromWeak(string cacheKey)
+    {
+        lock (CacheGate)
+        {
+            for (var i = WeakCache.Count - 1; i >= 0; i--)
+            {
+                var entry = WeakCache[i];
+                if (entry.Key != cacheKey) continue;
+
+                WeakCache.RemoveAt(i);
+                if (!entry.Reference.TryGetTarget(out var bitmap) || bitmap is null) continue;
+
+                var clone = CloneBitmap(bitmap);
+                if (clone is null) continue;
+
+                AddToMemory(cacheKey, bitmap);
+                return clone;
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 把内存缓存里的强引用条目降级成弱引用（不立即 Dispose，交给 GC 决定是否回收）。
+    ///
+    /// 大屏窗口关闭/隐藏时调用：整屏模糊图是最大的托管对象，强引用留着就会一直占内存；
+    /// 但用户往往过几秒又打开，若这时 GC 还没收掉，弱引用层能直接复活、省一次解码。
+    /// 被回收也不影响正确性——磁盘缓存还在，最坏是多解码一次。
+    /// </summary>
+    public static void TrimMemoryCache()
+    {
+        try
+        {
+            lock (CacheGate)
+            {
+                if (MemoryCache.Count == 0) return;
+
+                foreach (var entry in MemoryCache)
+                    WeakCache.Add(new WeakEntry(entry.Key, entry.Bitmap));
+
+                MemoryCache.Clear();
+                TrimWeakCache();
+            }
+        }
+        catch
+        {
+            // 内存整理是尽力而为，失败不能影响开屏
+        }
+    }
+
+    private static void TrimWeakCache()
+    {
+        while (WeakCache.Count > WeakCacheCapacity)
+            WeakCache.RemoveAt(0);
+
+        for (var i = WeakCache.Count - 1; i >= 0; i--)
+        {
+            if (!WeakCache[i].Reference.TryGetTarget(out var bitmap) || bitmap is null)
+                WeakCache.RemoveAt(i);
+        }
+    }
+
+    /// <summary>
+    /// 算实际解码宽度：模糊时按 <see cref="MaxBlurWorkingWidth"/> 封顶（模糊不需要原宽），
+    /// 不模糊时按目标宽度；再用 <see cref="PixelBudgetFactor"/> 兜一道像素预算，绝不放大。
+    /// </summary>
+    private static int ComputeDecodeWidth(int targetWidth, int effectiveRadius)
+    {
+        var width = targetWidth;
+        if (effectiveRadius > 0)
+            width = Math.Min(width, MaxBlurWorkingWidth);
+
+        var budget = Math.Max(1, (int)Math.Ceiling(targetWidth * PixelBudgetFactor));
+        return Math.Clamp(width, 1, budget);
+    }
+
+    /// <summary>取当前内存缓存条数（诊断用：设置页/日志可以看到缓存是否在长）。</summary>
+    public static int MemoryCacheEntryCount
+    {
+        get
+        {
+            lock (CacheGate) return MemoryCache.Count;
+        }
+    }
+
     /// <summary>读磁盘 PNG；文件不存在/损坏/解码失败都返回 null（损坏文件顺手删掉，免得每次开屏都重试）。</summary>
     private static Bitmap? TryLoadFromDisk(string diskPath)
     {
@@ -228,7 +345,11 @@ public static class WallpaperCacheService
         }
     }
 
-    /// <summary>主副本入内存缓存（幂等），超出容量时把最旧的逐出并释放。</summary>
+    /// <summary>
+    /// 主副本入内存缓存（幂等）。按「条数 + 总字节」双上限逐出最旧的：
+    /// 只限条数在高分屏上仍可能吃掉几百 MB，只限字节又可能在长时运行里越滚越多，
+    /// 两个都卡住才是「只增不减」的解药。
+    /// </summary>
     private static void AddToMemory(string cacheKey, Bitmap bitmap)
     {
         lock (CacheGate)
@@ -243,10 +364,15 @@ public static class WallpaperCacheService
 
             MemoryCache.Insert(0, new MemoryEntry(cacheKey, bitmap));
 
-            while (MemoryCache.Count > MemoryCacheCapacity)
+            var totalBytes = 0L;
+            foreach (var entry in MemoryCache) totalBytes += entry.Bytes;
+
+            while (MemoryCache.Count > MemoryCacheCapacity
+                   || (totalBytes > MaxMemoryCacheBytes && MemoryCache.Count > 1))
             {
-                var last = MemoryCache[MemoryCacheCapacity];
-                MemoryCache.RemoveAt(MemoryCacheCapacity);
+                var last = MemoryCache[MemoryCache.Count - 1];
+                MemoryCache.RemoveAt(MemoryCache.Count - 1);
+                totalBytes -= last.Bytes;
                 last.Bitmap.Dispose();
             }
         }
@@ -359,10 +485,41 @@ public static class WallpaperCacheService
         {
             Key = key;
             Bitmap = bitmap;
+            Bytes = EstimateBytes(bitmap);
         }
 
         public string Key { get; }
 
         public Bitmap Bitmap { get; }
+
+        /// <summary>这张位图大约占多少托管内存（BGRA = 4 字节/像素），用于字节预算。</summary>
+        public long Bytes { get; }
+
+        private static long EstimateBytes(Bitmap bitmap)
+        {
+            try
+            {
+                var size = bitmap.PixelSize;
+                return (long)Math.Max(0, size.Width) * Math.Max(0, size.Height) * 4;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+    }
+
+    /// <summary>弱引用条目：只弱引用主副本，Bitmap 被 GC 收掉后这里自动失效。</summary>
+    private sealed class WeakEntry
+    {
+        public WeakEntry(string key, Bitmap bitmap)
+        {
+            Key = key;
+            Reference = new WeakReference<Bitmap>(bitmap);
+        }
+
+        public string Key { get; }
+
+        public WeakReference<Bitmap> Reference { get; }
     }
 }

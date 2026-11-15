@@ -50,6 +50,12 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
             // 若上一次退出还在淡出（窗口还没真正 Hide），先取消，避免刚叫回来又被藏掉
             _window?.CancelHideFade();
 
+            // 时间源与强调色：CI 的服务/主题资源可能在宿主启动更晚才就绪，
+            // 每次打开大屏重新解析一次（拿不到就照旧用本机时间 / 主题自带配色，不影响旧行为）
+            CiTimeService.Invalidate();
+            CiThemeReader.Invalidate();
+            EnsureCiThemeSubscribed();   // 构造时宿主可能还没就绪，这里幂等补订
+
             // 必须在创建窗口前同步，否则绑定读到的是旧值
             ShowDecibelMeter = _settings.ShowDecibelMeter;
             ShowCourseInfo = _settings.ShowCourseInfo;
@@ -316,13 +322,17 @@ public partial class FullScreenClockViewModel : INotifyPropertyChanged
 
     private void RefreshAll()
     {
-        var now = DateTime.Now;
+        // 本机真实时间：只用来判断「是不是换了一天」和天气刷新节拍（这些都跟系统日历走）
+        var realNow = DateTime.Now;
 
         // 跨午夜课表重载：_todaySlots 只由 LoadTodaySchedule 重建，
         // 原先只有打铃路径会触发 → 过了零点课程/下一节/打铃仍在用昨天的课表。
         // 每秒检查真实日期；_scheduleDate 由 LoadTodaySchedule 自己维护（失败也会置，避免重试风暴）。
-        if (_scheduleDate != now.Date) LoadTodaySchedule();
+        if (_scheduleDate != realNow.Date) ReloadTodayScheduleAsync();
 
+        // 显示时间：与课程/打铃共用同一条时间轴（CI 虚拟时间，含时间偏移）。
+        // 时间偏移为 0 时它等于本机时间，默认设置下与 1.3.1.1 的读数完全一致。
+        var now = CiTimeService.Now;
         CurrentTime = now.ToString("HH:mm:ss");
         CurrentDate = now.ToString("yyyy年M月d日 dddd");
         UpdateDateSubtitle();   // 日期下方副标题（深夜/周五/月初），每秒刷新

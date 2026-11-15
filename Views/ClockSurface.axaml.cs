@@ -38,6 +38,45 @@ public partial class ClockSurface : UserControl
     }
 
     /// <summary>
+    /// 设计基准宽度（默认 1920）：**只给预览宿主算布局用**，大屏本身不读它。
+    ///
+    /// 设置页的预览按「大屏那块屏幕的逻辑尺寸」摆放，缩小到预览框里靠 LayoutTransform；
+    /// 宿主拿这两个值就知道这块面本来该有多宽/多高，从而算出正确的缩放比例。
+    /// 默认 1920×1080 保证没接这一项的旧宿主行为不变。
+    /// </summary>
+    public static readonly StyledProperty<double> SurfaceDesignWidthProperty =
+        AvaloniaProperty.Register<ClockSurface, double>(nameof(SurfaceDesignWidth), 1920d);
+
+    public double SurfaceDesignWidth
+    {
+        get => GetValue(SurfaceDesignWidthProperty);
+        set => SetValue(SurfaceDesignWidthProperty, value);
+    }
+
+    /// <summary>设计基准高度（默认 1080），用途见 <see cref="SurfaceDesignWidth"/>。</summary>
+    public static readonly StyledProperty<double> SurfaceDesignHeightProperty =
+        AvaloniaProperty.Register<ClockSurface, double>(nameof(SurfaceDesignHeight), 1080d);
+
+    public double SurfaceDesignHeight
+    {
+        get => GetValue(SurfaceDesignHeightProperty);
+        set => SetValue(SurfaceDesignHeightProperty, value);
+    }
+
+    /// <summary>
+    /// 内容层（时钟/日期/组件所在的整层）：供调试、截图工具单独取这一层用。
+    /// 命名不叫 ContentLayer 是为了不和 XAML 里 x:Name 生成的同名字段冲突。
+    /// </summary>
+    public Control ContentLayerRoot => ContentLayer;
+
+    /// <summary>
+    /// 背景层本身：全屏窗口按背景类型（原生模糊 / 网页背景）切换窗口透明与 DWM 模糊时，
+    /// 需要拿它问「这一种背景要不要窗口透明」（BackgroundLayer.NeedsTransparentWindow）。
+    /// 只读暴露：外面只能读取/调用它的方法，换不了这一层。
+    /// </summary>
+    public new BackgroundLayer Background => BackLayer;
+
+    /// <summary>
     /// 背景层的圆角。大屏全屏时是 0；设置页的预览是一张圆角卡片，要设成和卡片一样的圆角，
     /// 否则背景图会在卡片四角露出方角（Border 的 ClipToBounds 只裁矩形，不裁圆角）。
     /// </summary>
@@ -58,7 +97,7 @@ public partial class ClockSurface : UserControl
             UpdateSizeDependentLayout();
             SetupBackdrop();
             UpdatePreviewPlaceholders();
-            ApplyCustomImage();
+            SyncStickerHosts();
             ApplyComponentVisibility();
             ApplyComponentOrder();
         };
@@ -78,6 +117,8 @@ public partial class ClockSurface : UserControl
         Loaded += (_, _) => UpdatePreviewPlaceholders();
         Loaded += (_, _) =>
         {
+            // 重新进可视树时把贴纸位图补回来（离开时全放掉了，见 UnhookSignals）
+            SyncStickerHosts();
             ApplyComponentVisibility();
             ApplyComponentOrder();
         };
@@ -133,6 +174,11 @@ public partial class ClockSurface : UserControl
             vm.NoisyDisplaySegments.CollectionChanged -= OnNoisySegmentsChanged;
         }
         _hookedVm = null;
+
+        // 贴纸位图与实例监听随这一份面一起放掉：设置页每打开一次就新建一个 ClockSurface（预览那份），
+        // 不放的话每开一次设置页就多留一份原图大小的位图，还挂着长命的设置对象。
+        UnhookStickerInstances();
+        ReleaseAllStickerBitmaps();
     }
 
     private void OnNoisySegmentsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -140,11 +186,14 @@ public partial class ClockSurface : UserControl
 
     private void OnPluginSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        // 自定义图片：换图/换填充方式后重新解码，并让整块的显隐跟着「有没有图」走
-        if (e.PropertyName is nameof(PluginSettings.CustomImageFile)
+        // 贴纸：换图/换填充方式/增删实例后重新同步（换图要重新解码，删实例要摘掉组件壳）。
+        // 实例内部的 PropertyChanged 与集合变更都会被 PluginSettings 冒泡成一次 ImageInstances 通知，
+        // 这里接住就够了，不用自己再挂一遍集合事件。
+        if (e.PropertyName is nameof(PluginSettings.ImageInstances)
+            or nameof(PluginSettings.CustomImageFile)
             or nameof(PluginSettings.CustomImageStretch))
         {
-            ApplyCustomImage();
+            SyncStickerHosts();
             ApplyComponentVisibility();
             return;
         }
@@ -326,80 +375,271 @@ public partial class ClockSurface : UserControl
         Set(ReminderPanelHost, null);
         Set(ProgressHost, null);
 
-        // 自定义图片：没有图（或图读不出来）时整块隐藏，别留一块空壳占着布局
-        Set(ImageHost, null);
-        ImageHost.IsVisible = ImageHost.IsVisible && _customImageAvailable;
+        // 贴纸：每个实例各自看「自己的启用开关 + 有没有图」，没图/坏图不留空壳
+        SetStickerVisibility();
     }
 
-    // ===== 自定义图片组件 =====
+    // ===== 贴纸（自定义图片组件，1.4.0.0 起支持多个实例）=====
+    //
+    // 1.3.1.1 只有一个固定 ImageHost + 一张 CustomImageFile。1.4.0.0 改成：
+    //   * 每个 Plugin.Settings.ImageInstances 里的实例生成一个 ComponentHost（自带 ComponentId =
+    //     "image:<实例id>"），每个实例因此有自己的布局键，位置/大小/不透明度互不影响；
+    //   * 老配置（迁移还没跑、或贴纸列表为空但旧单图字段有值）仍按单图渲染，id 用旧的 "image"，
+    //     外观与 1.3.1.1 逐像素一致 —— 回退/降级都不会丢图；
+    //   * 位图按**文件路径**缓存：同一张图被多个实例引用时只解码一份；实例删掉/换图后，
+    //     没有被任何实例引用的位图延后一帧释放（渲染线程可能还在读）。
 
-    /// <summary>当前已解码的图片路径 / 位图，用来避免拖滑块时反复解码同一张图。</summary>
-    private string? _customImagePath;
-    private Bitmap? _customImageBitmap;
+    /// <summary>一个贴纸实例在大屏上的可视部分（外壳 + 图片 + 当前状态）。</summary>
+    private sealed class StickerVisual
+    {
+        public required ComponentHost Host { get; init; }
+        public required Image Image { get; init; }
+        public required string ComponentId { get; init; }
+        public string? Path { get; set; }
+        public bool Available { get; set; }
+    }
 
-    /// <summary>设置里有图且读得出来 → true；没有/坏图 → false（组件随之隐藏）。</summary>
-    private bool _customImageAvailable;
+    private readonly Dictionary<string, StickerVisual> _stickers = new(StringComparer.Ordinal);
+
+    /// <summary>路径 → 已解码位图。多实例共用一张图时只解码一次，拖滑块不会反复读盘。</summary>
+    private readonly Dictionary<string, Bitmap> _stickerBitmaps = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>已经挂上 PropertyChanged 的贴纸实例（见 <see cref="HookStickerInstances"/>）。</summary>
+    private readonly HashSet<ImageInstance> _hookedStickerInstances = new();
+
+    /// <summary>填充方式：0 完整显示 / 1 铺满裁切 / 2 拉伸（与设置页下拉一致）。</summary>
+    private static Stretch ToStretch(int value) => value switch
+    {
+        1 => Stretch.UniformToFill,
+        2 => Stretch.Fill,
+        _ => Stretch.Uniform,
+    };
 
     /// <summary>
-    /// 把设置里指定的自定义图片读到 <see cref="CustomImage"/>。
-    /// 同一张图不重复解码（改大小/不透明度/位置都会触发设置通知），换图时旧位图延后一帧再释放。
+    /// 算出这一刻该画哪些图：优先贴纸实例列表，列表为空时回退到旧版单图字段
+    /// （迁移没跑、或用户把实例全删了但还有个老 CustomImageFile —— 不回退会“图凭空消失”）。
     /// </summary>
-    private void ApplyCustomImage()
+    private List<(string ComponentId, string? Path, int Stretch)> ResolveStickerSources()
     {
-        var settings = Plugin.Settings;
-        var path = settings is null ? null : ComponentImageStore.ResolvePath(settings.CustomImageFile);
+        var sources = new List<(string, string?, int)>();
+        if (Plugin.Settings is not { } settings) return sources;
 
-        if (settings is not null)
+        var instances = settings.ImageInstances;
+        if (instances is { Count: > 0 })
         {
-            CustomImage.Stretch = settings.CustomImageStretch switch
+            foreach (var instance in instances)
+                sources.Add((instance.ComponentId, ComponentImageStore.ResolvePath(instance.File), instance.Stretch));
+            return sources;
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.CustomImageFile))
+        {
+            sources.Add((ComponentIds.LegacyImage,
+                ComponentImageStore.ResolvePath(settings.CustomImageFile),
+                settings.CustomImageStretch));
+        }
+
+        return sources;
+    }
+
+    /// <summary>
+    /// 让贴纸层和设置里的实例列表对齐：多了就建壳、少了就摘壳、换图就换位图。
+    /// 增删实例、换图、改填充方式都会走到这里（设置对象把这些变化冒泡成一次 ImageInstances 通知）。
+    /// </summary>
+    private void SyncStickerHosts()
+    {
+        // 实例自己的 File/Stretch 变化也要能立刻反映到画面上。
+        // 这里不禁依赖 PluginSettings 的冒泡：从 Settings.json 反序列化出来的实例不一定被
+        // 设置对象订阅过（那边只订阅了新加入集合的实例），这里自己挂一份最稳。
+        HookStickerInstances();
+
+        var sources = ResolveStickerSources();
+        var wanted = new HashSet<string>(sources.Select(s => s.ComponentId), StringComparer.Ordinal);
+
+        // 先摘掉已经不存在的实例：连外壳一起从贴纸层移走，不留看不见的空壳
+        foreach (var id in _stickers.Keys.Where(id => !wanted.Contains(id)).ToList())
+        {
+            var removed = _stickers[id];
+            StickerLayer.Children.Remove(removed.Host);
+            removed.Image.Source = null;
+            _stickers.Remove(id);
+        }
+
+        foreach (var source in sources)
+        {
+            if (!_stickers.TryGetValue(source.ComponentId, out var visual))
             {
-                1 => Stretch.UniformToFill,   // 铺满裁切
-                2 => Stretch.Fill,            // 拉伸（可能变形）
-                _ => Stretch.Uniform,         // 完整显示
-            };
+                // 枚举写全名：ClockSurface 自己也有 HorizontalAlignment/VerticalAlignment 属性，
+                // 不限定类型名的话左边会被解析成 this.HorizontalAlignment（实例属性）。
+                var host = new ComponentHost
+                {
+                    ComponentId = source.ComponentId,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    // 与 1.3.1.1 的单图默认位置一致：主体区右侧居中、右边留 40
+                    Margin = new Thickness(0, 0, 40, 0),
+                    IsHitTestVisible = false,
+                };
+                var image = new Image
+                {
+                    Stretch = ToStretch(source.Stretch),
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                };
+                host.Content = image;
+                StickerLayer.Children.Add(host);
+                visual = new StickerVisual { Host = host, Image = image, ComponentId = source.ComponentId };
+                _stickers[source.ComponentId] = visual;
+            }
+
+            visual.Image.Stretch = ToStretch(source.Stretch);
+            visual.Path = source.Path;
+
+            var bitmap = GetStickerBitmap(source.Path);
+            visual.Available = bitmap is not null;
+            if (!ReferenceEquals(visual.Image.Source, bitmap)) visual.Image.Source = bitmap;
+
+            ApplyStickerSize(visual);
         }
 
-        if (path is null)
+        ReleaseUnusedStickerBitmaps();
+        SetStickerVisibility();
+    }
+
+    /// <summary>让「已挂监听的实例集合」与设置里的 ImageInstances 对齐（多退少补）。</summary>
+    private void HookStickerInstances()
+    {
+        if (Plugin.Settings is not { } settings) return;
+
+        var current = new HashSet<ImageInstance>(settings.ImageInstances);
+
+        foreach (var instance in _hookedStickerInstances.Where(i => !current.Contains(i)).ToList())
         {
-            _customImagePath = null;
-            _customImageAvailable = false;
-            CustomImage.Source = null;
-            ReplaceCustomImageBitmap(null);
-            return;
+            instance.PropertyChanged -= OnStickerInstancePropertyChanged;
+            _hookedStickerInstances.Remove(instance);
         }
 
-        _customImageAvailable = true;
-        if (string.Equals(_customImagePath, path, StringComparison.OrdinalIgnoreCase) && _customImageBitmap is not null)
-            return;
+        foreach (var instance in current.Where(i => !_hookedStickerInstances.Contains(i)))
+        {
+            instance.PropertyChanged += OnStickerInstancePropertyChanged;
+            _hookedStickerInstances.Add(instance);
+        }
+    }
+
+    /// <summary>摘掉所有实例监听（离开可视树时调用，别让长命的设置对象攥住这一份面）。</summary>
+    private void UnhookStickerInstances()
+    {
+        foreach (var instance in _hookedStickerInstances)
+            instance.PropertyChanged -= OnStickerInstancePropertyChanged;
+        _hookedStickerInstances.Clear();
+    }
+
+    /// <summary>贴纸实例换了图/改了填充方式 → 重新同步（换图要重新解码）。</summary>
+    private void OnStickerInstancePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ImageInstance.File)
+            or nameof(ImageInstance.Stretch)
+            or null
+            or "")
+        {
+            SyncStickerHosts();
+        }
+    }
+
+    /// <summary>取（并缓存）一张图的位图；读不出来返回 null —— 坏图当没选图，别让整面墙跟着崩。</summary>
+    private Bitmap? GetStickerBitmap(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        if (_stickerBitmaps.TryGetValue(path, out var cached)) return cached;
 
         try
         {
-            var bitmap = new Bitmap(path);
-            _customImagePath = path;
-            CustomImage.Source = bitmap;
-            ReplaceCustomImageBitmap(bitmap);
+            // 贴纸是用户自选的图片，可能是一张几千万像素的原图：直接 new Bitmap 会把整张解到内存里。
+            // 先读文件头拿源尺寸，比屏幕（逻辑宽）还大才按宽解码——和壁纸那条「绝不放大」的规矩一致。
+            using var stream = File.OpenRead(path);
+            var sourceSize = ImageHeader.ReadSize(stream);
+            stream.Position = 0;
 
-            // 图片刚换上时也按屏幕算一次尺寸（DataContextChanged 时面可能还没量过宽度）
-            if (Bounds.Width > 0) UpdateSizeDependentLayout();
+            var maxWidth = Math.Max(256, (int)Math.Round(Bounds.Width > 0 ? Bounds.Width : 1920));
+            var bitmap = sourceSize is { } size && size.Width > maxWidth
+                ? Bitmap.DecodeToWidth(stream, maxWidth, BitmapInterpolationMode.HighQuality)
+                : new Bitmap(stream);
+
+            _stickerBitmaps[path] = bitmap;
+            return bitmap;
         }
         catch
         {
-            // 文件坏了就当没选图，别让整面墙跟着崩
-            _customImagePath = null;
-            _customImageAvailable = false;
-            CustomImage.Source = null;
-            ReplaceCustomImageBitmap(null);
+            return null;
         }
     }
 
-    private void ReplaceCustomImageBitmap(Bitmap? bitmap)
+    /// <summary>释放已经没有实例引用的位图（延后一帧：渲染线程可能还在读）。</summary>
+    private void ReleaseUnusedStickerBitmaps()
     {
-        var previous = _customImageBitmap;
-        _customImageBitmap = bitmap;
-        if (previous is null || ReferenceEquals(previous, bitmap)) return;
+        if (_stickerBitmaps.Count == 0) return;
 
-        // 等这一帧画完再释放，避免渲染线程还在读旧位图
-        Dispatcher.UIThread.Post(previous.Dispose, DispatcherPriority.Background);
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var visual in _stickers.Values)
+        {
+            if (!string.IsNullOrWhiteSpace(visual.Path)) used.Add(visual.Path);
+        }
+
+        foreach (var path in _stickerBitmaps.Keys.Where(path => !used.Contains(path)).ToList())
+        {
+            var bitmap = _stickerBitmaps[path];
+            _stickerBitmaps.Remove(path);
+            Dispatcher.UIThread.Post(bitmap.Dispose, DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>整面内容层离开可视树时把贴纸位图全放掉：设置页预览每开一次都会建一份新的面。</summary>
+    private void ReleaseAllStickerBitmaps()
+    {
+        if (_stickerBitmaps.Count == 0) return;
+
+        foreach (var visual in _stickers.Values)
+            visual.Image.Source = null;
+
+        var bitmaps = _stickerBitmaps.Values.ToList();
+        _stickerBitmaps.Clear();
+        foreach (var bitmap in bitmaps)
+            Dispatcher.UIThread.Post(bitmap.Dispose, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// 贴纸尺寸：按屏幕宽度的 30% 作基准边长、保持原图长宽比（再大靠组件的「大小倍率」放大），
+    /// 高度不超过屏幕六成，免得一张竖图顶到顶栏 —— 与 1.3.1.1 的算法完全一致。
+    /// </summary>
+    private void ApplyStickerSize(StickerVisual visual)
+    {
+        if (visual.Image.Source is not Bitmap bitmap) return;
+        if (bitmap.PixelSize is not { Width: > 0, Height: > 0 } pixel) return;
+        if (Bounds.Width <= 0) return;   // 还没量出尺寸，等下一次 SizeChanged
+
+        var baseWidth = Math.Max(80, Bounds.Width * 0.30);
+        var width = baseWidth;
+        var height = baseWidth * pixel.Height / pixel.Width;
+        var maxHeight = Bounds.Height * 0.60;
+        if (height > maxHeight)
+        {
+            height = maxHeight;
+            width = height * pixel.Width / pixel.Height;
+        }
+
+        if (Math.Abs(visual.Image.Width - width) > 0.5) visual.Image.Width = width;
+        if (Math.Abs(visual.Image.Height - height) > 0.5) visual.Image.Height = height;
+    }
+
+    /// <summary>每个贴纸的显隐 = 它自己的启用开关 且 图还在；两个条件缺一就整块隐藏（不占位）。</summary>
+    private void SetStickerVisibility()
+    {
+        var settings = Plugin.Settings;
+        foreach (var visual in _stickers.Values)
+        {
+            var enabled = settings is null || settings.GetComponentLayout(visual.ComponentId).Enabled;
+            visual.Host.IsVisible = enabled && visual.Available;
+        }
     }
 
     /// <summary>
@@ -580,23 +820,9 @@ public partial class ClockSurface : UserControl
         // 地震提醒块：整窗宽去掉页面左右各 40 的边距，再留出内边距与描边
         vm.EarthquakeAlertMaxWidth = Math.Max(240, Bounds.Width - 80 - 72);
 
-        // 自定义图片：按屏幕宽度的 30% 作基准边长、保持原图长宽比（再大就靠组件的「大小倍率」放大），
-        // 高度别超过屏幕的六成，免得一张竖图顶到顶栏。
-        if (CustomImage.Source is Bitmap customBitmap && customBitmap.PixelSize is { Width: > 0, Height: > 0 } pixel)
-        {
-            var baseWidth = Math.Max(80, Bounds.Width * 0.30);
-            var width = baseWidth;
-            var height = baseWidth * pixel.Height / pixel.Width;
-            var maxHeight = Bounds.Height * 0.60;
-            if (height > maxHeight)
-            {
-                height = maxHeight;
-                width = height * pixel.Width / pixel.Height;
-            }
-
-            if (Math.Abs(CustomImage.Width - width) > 0.5) CustomImage.Width = width;
-            if (Math.Abs(CustomImage.Height - height) > 0.5) CustomImage.Height = height;
-        }
+        // 贴纸：每个实例按屏幕宽度重新算一遍尺寸（算法见 ApplyStickerSize，与 1.3.1.1 单图一致）
+        foreach (var sticker in _stickers.Values)
+            ApplyStickerSize(sticker);
 
         ApplyBodyPositions();
     }

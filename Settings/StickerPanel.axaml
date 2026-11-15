@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls2="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
+             x:Class="LargeScreenClockRevived.Settings.StickerPanel">
+
+    <!-- 贴纸面板：管理 Plugin.Settings.ImageInstances（1.4.0.0 起自定义图片支持多个实例）。
+         每个实例在大屏上是一个独立的组件（id = image:实例id），位置/大小/不透明度在组件条里
+         选中「贴纸 N」后用上面那块「大小 / 位置 / 不透明度」调。
+         图片本身复制一份进插件配置目录（ComponentImageStore），原图挪走也不影响大屏。 -->
+    <controls2:SettingsExpander x:Name="PanelRoot"
+                                Header="贴纸（自定义图片）"
+                                Description="可以放多张图（班徽、logo……）。每张图在大屏上是一个独立组件，位置与大小在「组件」条里调。"
+                                IsExpanded="False" Margin="0 12 0 0">
+
+        <StackPanel Spacing="8">
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="＋ 添加贴纸" Padding="12,6" CornerRadius="6" Cursor="Hand"
+                        Click="AddSticker_Click"/>
+                <Button Content="清理未使用的图片副本" Padding="12,6" CornerRadius="6" Cursor="Hand"
+                        Click="Prune_Click"/>
+                <TextBlock Text="{Binding Hint}" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <TextBlock Text="还没有贴纸。点「＋ 添加贴纸」放一张图。"
+                       FontSize="12" TextWrapping="Wrap" IsVisible="{Binding IsEmpty}"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0 0 0 8" Padding="10,8" CornerRadius="6"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" FontSize="13"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding FileName}" FontSize="11"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+
+                                <ComboBox Grid.Column="1" Width="120" Margin="8 0 0 0"
+                                          SelectedIndex="{Binding StretchIndex, Mode=TwoWay}"
+                                          VerticalAlignment="Center">
+                                    <ComboBoxItem Content="完整显示"/>
+                                    <ComboBoxItem Content="铺满裁切"/>
+                                    <ComboBoxItem Content="拉伸"/>
+                                </ComboBox>
+
+                                <Button Grid.Column="2" Content="选图" Margin="8 0 0 0" Padding="10,4"
+                                        CornerRadius="6" Cursor="Hand" Click="PickImage_Click"/>
+                                <Button Grid.Column="3" Content="清除" Margin="8 0 0 0" Padding="10,4"
+                                        CornerRadius="6" Cursor="Hand" Click="ClearImage_Click"/>
+                                <Button Grid.Column="4" Content="删除" Margin="8 0 0 0" Padding="10,4"
+                                        CornerRadius="6" Cursor="Hand" Click="DeleteSticker_Click"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="提示：贴纸太多又不想删，可以在组件页签里把对应「贴纸 N」关掉——关掉后大屏不显示也不占位。"
+                       FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+        </StackPanel>
+    </controls2:SettingsExpander>
+</UserControl>

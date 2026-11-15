@@ -8,6 +8,8 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using LargeScreenClockRevived.Models;
+using LargeScreenClockRevived.Services;
+using LargeScreenClockRevived.Views;
 
 namespace LargeScreenClockRevived.Settings;
 
@@ -16,21 +18,44 @@ public partial class SettingsPage
 
     // ===== 背景类型 =====
 
-    /// <summary>背景类型：0 提取当前壁纸 / 1 纯色背景 / 2 自定义图片。</summary>
+    /// <summary>背景类型：0 提取当前壁纸 / 1 纯色背景 / 2 自定义图片 / 3 实时模糊 / 4 网页背景。</summary>
     public int BackgroundKindIndex
     {
         get => _settings.BackgroundKind;
         set
         {
-            if (_settings.BackgroundKind == value) return;
-            _settings.BackgroundKind = value;
+            var clamped = Math.Clamp(value, 0, (int)BackgroundKind.WebPage);
+            if (_settings.BackgroundKind == clamped) return;
+
+            // 网页背景依赖系统里的 WebView2 运行时：没装时直接拦下这一档，
+            // 否则用户选完看到的是「透明 + 纯色兜底」，会以为插件坏了。
+            // 只拦这一档，其它档位照常切换。
+            if ((BackgroundKind)clamped == BackgroundKind.WebPage && !WebView2Availability.IsAvailable)
+            {
+                BackgroundKindHint = WebView2Availability.UnavailableReason;
+                OnPropertyChanged(nameof(BackgroundKindHint));
+                // 设置没变，但 ComboBox 已经把自己挪到新档了：再通知一次让绑定拉回旧值
+                OnPropertyChanged(nameof(BackgroundKindIndex));
+                return;
+            }
+
+            _settings.BackgroundKind = clamped;
             OnPropertyChanged(nameof(BackgroundKindIndex));
-            // 三种类型各露各的行，换档时三个可见性都得重新通知一遍
-            OnPropertyChanged(nameof(IsWallpaperBackground));
-            OnPropertyChanged(nameof(IsSolidColorBackground));
-            OnPropertyChanged(nameof(IsCustomImageBackground));
+            // 1.4 起有五档，各露各的行：统一在一处通知，避免以后再加档位漏发
+            NotifyBackgroundKindVisibility();
             SchedulePreviewSync();
         }
+    }
+
+    /// <summary>切档后把「哪几行该露出来」统一通知一遍（可见性都是直接读设置的 getter）。</summary>
+    private void NotifyBackgroundKindVisibility()
+    {
+        OnPropertyChanged(nameof(IsWallpaperBackground));
+        OnPropertyChanged(nameof(IsSolidColorBackground));
+        OnPropertyChanged(nameof(IsCustomImageBackground));
+        OnPropertyChanged(nameof(IsNativeBlurBackground));
+        OnPropertyChanged(nameof(IsWebBackground));
+        OnPropertyChanged(nameof(IsTransparentBackground));
     }
 
     /// <summary>当前背景是不是「提取当前桌面壁纸」——景深放大、模糊半径两行只在此时露出。</summary>
@@ -41,6 +66,21 @@ public partial class SettingsPage
 
     /// <summary>当前背景是不是用户导入的那张图——背景图片、填充方式两行只在此时露出。</summary>
     public bool IsCustomImageBackground => _settings.BackgroundKind == (int)BackgroundKind.CustomImage;
+
+    /// <summary>实时模糊：不画自己的底，交给 Windows 原生把窗口后面的桌面实时模糊掉。</summary>
+    public bool IsNativeBlurBackground => _settings.BackgroundKind == (int)BackgroundKind.NativeBlur;
+
+    /// <summary>网页背景：WebView2 在独立的下层窗口里画网页，组件叠在网页上。</summary>
+    public bool IsWebBackground => _settings.BackgroundKind == (int)BackgroundKind.WebPage;
+
+    /// <summary>实时模糊 / 网页：大屏窗口需要透明（背景层不铺自己的底）。</summary>
+    public bool IsTransparentBackground => IsNativeBlurBackground || IsWebBackground;
+
+    /// <summary>
+    /// 背景档位的提示文案：只在「切换被拦下」时给出原因（例如 WebView2 不可用）。
+    /// 正常切换时保持空串，设置页不必显示任何提示。
+    /// </summary>
+    public string BackgroundKindHint { get; private set; } = "";
 
     // ===== 壁纸：景深放大 + 模糊半径 =====
 
@@ -160,6 +200,26 @@ public partial class SettingsPage
         OnPropertyChanged(nameof(BackgroundImageSummary));
         OnPropertyChanged(nameof(BackgroundImageHint));
         RefreshThemeFromBackground();   // 「自动」主题档要按新图重判一次
+    }
+
+    // ===== 网页背景地址（1.4.0.0） =====
+
+    /// <summary>
+    /// 网页背景地址。写入前统一清洗：没写协议补 https://，非 http/https/file/about 的协议
+    /// （javascript: 之类）不接受——设置页和 BackgroundExtrasPanel 都走同一个入口，
+    /// 免得两处各写一套校验、行为不一致。
+    /// </summary>
+    public string BackgroundWebUrl
+    {
+        get => _settings.BackgroundWebUrl;
+        set
+        {
+            var normalized = WebViewHost.NormalizeUrl(value);
+            if (normalized.Length == 0) return;
+            if (string.Equals(_settings.BackgroundWebUrl, normalized, StringComparison.Ordinal)) return;
+            _settings.BackgroundWebUrl = normalized;
+            OnPropertyChanged(nameof(BackgroundWebUrl));
+        }
     }
 
     // ===== 背景明暗 =====
