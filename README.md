@@ -54,7 +54,7 @@ pwsh -File ./build.ps1
 * `bin/<Configuration>/net8.0-windows/manifest.yml` —— 已盖号的运行时清单
 * `cipx/LargeScreenClockRevived.cipx` —— 可直接安装 / 发布的插件包
 
-`manifest.yml` 的 `version` 为对外版本（当前 `1.4.0.0`）；`apiVersion` 跟随编译所用 SDK（当前 PluginSdk 2.1.0.1 → `2.1.0.0`），升级 SDK 时同步修改。开发版五位号（`1.4.0.0.N`）宿主可加载，但更新检查不认，不会当正式更新分发。
+`manifest.yml` 的 `version` 为对外版本（当前 `1.4.0.1`）；`apiVersion` 跟随编译所用 SDK（当前 PluginSdk 2.1.0.1 → `2.1.0.0`），升级 SDK 时同步修改。开发版五位号（`1.4.0.0.N`）宿主可加载，但更新检查不认，不会当正式更新分发。
 
 ## 说明
 

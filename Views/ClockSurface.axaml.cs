@@ -573,12 +573,11 @@ public partial class ClockSurface : UserControl
             if (!string.IsNullOrWhiteSpace(visual.Path)) used.Add(visual.Path);
         }
 
+        // 只丢引用，不 Dispose：贴纸图可能正被某个正在移除/换图的 Image 引用，
+        // 提前释放会在下一次布局量 Bitmap.Size 时炸空引用（1.4.0.0 的真机崩溃）。
+        // Avalonia 的 Bitmap 有终结器，丢掉最后一个强引用后由 GC 回收。
         foreach (var path in _stickerBitmaps.Keys.Where(path => !used.Contains(path)).ToList())
-        {
-            var bitmap = _stickerBitmaps[path];
             _stickerBitmaps.Remove(path);
-            Dispatcher.UIThread.Post(bitmap.Dispose, DispatcherPriority.Background);
-        }
     }
 
     /// <summary>整面内容层离开可视树时把贴纸位图全放掉：设置页预览每开一次都会建一份新的面。</summary>
@@ -589,10 +588,8 @@ public partial class ClockSurface : UserControl
         foreach (var visual in _stickers.Values)
             visual.Image.Source = null;
 
-        var bitmaps = _stickerBitmaps.Values.ToList();
+        // 同理：只清引用。视觉树里的 Image.Source 已先置空，剩下的交给 GC。
         _stickerBitmaps.Clear();
-        foreach (var bitmap in bitmaps)
-            Dispatcher.UIThread.Post(bitmap.Dispose, DispatcherPriority.Background);
     }
 
     /// <summary>

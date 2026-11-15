@@ -150,6 +150,11 @@ public partial class BackgroundLayer : UserControl
     public void PrepareForIntro()
     {
         StopIntroTimeline();
+
+        // 上一次 Hide 时位图已经交还给 GC，这里把 Source 也清空：首轮布局不该再去量一张
+        // 已经可能被回收的图（PlayIntroAsync 会重新 Apply 出目标画面）。
+        TargetImage.Source = null;
+        PriorImage.Source = null;
         TargetImage.Transitions = null;
         SolidFill.Transitions = null;
         PriorImage.Transitions = null;
@@ -340,7 +345,7 @@ public partial class BackgroundLayer : UserControl
         _targetScale.ScaleY = finalZoom;
 
         PriorImage.Source = null;
-        _priorBitmap?.Dispose();
+        // 不 Dispose：渲染管线可能还在读这一帧（见 ReleaseBitmaps 的注释）。
         _priorBitmap = null;
     }
 
@@ -592,7 +597,9 @@ public partial class BackgroundLayer : UserControl
         if (_fadingBitmap is null) return;
         if (ReferenceEquals(PriorImage.Source, _fadingBitmap))
             PriorImage.Source = null;
-        _fadingBitmap.Dispose();
+
+        // 同 ReleaseBitmaps：只丢引用，不 Dispose——淡出期间渲染线程可能还在读，
+        // 提前释放就是 Bitmap.get_Size() 的空引用崩溃。
         _fadingBitmap = null;
     }
 
@@ -685,11 +692,14 @@ public partial class BackgroundLayer : UserControl
         StopIntroTimeline();
         TargetImage.Source = null;
         PriorImage.Source = null;
-        _targetBitmap?.Dispose();
+
+        // 这里**不** Dispose 位图，只丢引用让 GC 回收（Avalonia 的 Bitmap 自带终结器）。
+        // 原因：1.4.0.0 集成时在窗口 Hide 上调用本方法，随后下一次 Show 的首轮布局
+        // 在 Bitmap.get_Size() 抛 NullReferenceException——有 Image.Source 仍指向已释放的位图。
+        // 整屏位图会在多个 Image/交叉淡入之间转手，任何「先 Dispose 再等 GC」都可能踩到
+        // 仍挂在视觉树上的实例；丢引用后由 GC 统一回收是唯一不会崩的做法。
         _targetBitmap = null;
-        _priorBitmap?.Dispose();
         _priorBitmap = null;
-        _fadingBitmap?.Dispose();
         _fadingBitmap = null;
 
         // 窗口关掉/隐藏后没有人再需要整屏壁纸：把缓存里的强引用位图降级成弱引用，
