@@ -34,8 +34,15 @@ public partial class SettingsPage
             {
                 BackgroundKindHint = WebView2Availability.UnavailableReason;
                 OnPropertyChanged(nameof(BackgroundKindHint));
-                // 设置没变，但 ComboBox 已经把自己挪到新档了：再通知一次让绑定拉回旧值
-                OnPropertyChanged(nameof(BackgroundKindIndex));
+                OnPropertyChanged(nameof(HasBackgroundKindHint));
+
+                // 设置没变，但 ComboBox 已经把自己挪到新档了：必须让绑定重新读一次旧值。
+                // 不能在 setter 里同步通知——此刻 TwoWay 绑定正处在「写回源」的流程里，
+                // 同步再通知会被当成同一次更新而忽略，ComboBox 就停在那一档、设置却没变
+                // （用户看到的就是「选了网页背景，但下面还是壁纸的行、也没有网页设置」）。
+                Avalonia.Threading.Dispatcher.UIThread.Post(
+                    () => OnPropertyChanged(nameof(BackgroundKindIndex)),
+                    Avalonia.Threading.DispatcherPriority.Background);
                 return;
             }
 
@@ -81,6 +88,20 @@ public partial class SettingsPage
     /// 正常切换时保持空串，设置页不必显示任何提示。
     /// </summary>
     public string BackgroundKindHint { get; private set; } = "";
+
+    /// <summary>有没有「切换被拦下」的提示要显示（有才在背景类型下面露那一行）。</summary>
+    public bool HasBackgroundKindHint => !string.IsNullOrEmpty(BackgroundKindHint);
+
+    /// <summary>
+    /// 「重新检测」：运行时可能是在 CI 开着的时候装上的，探测结果有缓存，需要手动丢一次。
+    /// </summary>
+    private void RefreshWebView2_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        WebView2Availability.Refresh();
+        BackgroundKindHint = WebView2Availability.IsAvailable ? "" : WebView2Availability.UnavailableReason;
+        OnPropertyChanged(nameof(BackgroundKindHint));
+        OnPropertyChanged(nameof(HasBackgroundKindHint));
+    }
 
     // ===== 壁纸：景深放大 + 模糊半径 =====
 

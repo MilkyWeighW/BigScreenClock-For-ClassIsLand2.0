@@ -33,17 +33,29 @@ public static class WebView2Availability
     /// 探测结果只算一次：运行时不会在进程生命周期里凭空出现/消失，
     /// 每次切背景都去读注册表/起 COM 太浪费。
     /// </summary>
-    private static readonly Lazy<ProbeResult> Probe =
+    private static Lazy<ProbeResult> _probe =
         new(ProbeCore, LazyThreadSafetyMode.ExecutionAndPublication);
 
+    /// <summary>WebView2Loader.dll 的目录是否已经告诉过 WebView2 SDK（只需要设一次）。</summary>
+    private static bool _loaderPathApplied;
+
     /// <summary>本机能否使用网页背景。false 时调用方必须静默退回纯色/壁纸，不要弹框。</summary>
-    public static bool IsAvailable => Probe.Value.Available;
+    public static bool IsAvailable => _probe.Value.Available;
 
     /// <summary>可用的 WebView2 运行时版本号；不可用时为 null。</summary>
-    public static string? Version => Probe.Value.Version;
+    public static string? Version => _probe.Value.Version;
 
     /// <summary>不可用时的中文原因（可用时为空串），可直接显示给用户。</summary>
-    public static string UnavailableReason => Probe.Value.Reason;
+    public static string UnavailableReason => _probe.Value.Reason;
+
+    /// <summary>
+    /// 丢掉缓存的探测结果（设置页的「重新检测」用）。运行时可能是在 CI 运行期间装上的。
+    /// </summary>
+    public static void Refresh()
+    {
+        _loaderPathApplied = false;
+        _probe = new Lazy<ProbeResult>(ProbeCore, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
 
     private sealed class ProbeResult
     {
@@ -59,10 +71,48 @@ public static class WebView2Availability
         public string Reason { get; }
     }
 
+    /// <summary>
+    /// 告诉 WebView2 SDK 去哪里找 WebView2Loader.dll。
+    ///
+    /// 插件是装在 ClassIsland 插件目录里的：Core.dll 自己的 DllImport 走的是它所在目录/进程目录，
+    /// 不一定能看见我们 cipx 里的 runtimes/win-x64/native。找不到 Loader 时
+    /// GetAvailableBrowserVersionString() 会抛异常，于是「明明装了 Edge 却报 WebView2 不可用」——
+    /// 网页背景选项就永远置灰。这里在第一次探测前把真实目录设给 SDK。
+    /// 老版本 SDK 没有这个 API 时抛 MissingMethodException，忽略即可。
+    /// </summary>
+    private static void TryApplyLoaderPath()
+    {
+        if (_loaderPathApplied) return;
+        _loaderPathApplied = true;
+
+        try
+        {
+            foreach (var directory in CandidateDirectories())
+            {
+                if (string.IsNullOrWhiteSpace(directory)) continue;
+                try
+                {
+                    if (!File.Exists(Path.Combine(directory, LoaderFileName))) continue;
+                    CoreWebView2Environment.SetLoaderDllFolderPath(directory);
+                    return;
+                }
+                catch
+                {
+                    // 单个目录不适合就继续找下一个
+                }
+            }
+        }
+        catch
+        {
+            // SDK 太老没有这个 API：交给默认解析
+        }
+    }
+
     private static ProbeResult ProbeCore()
     {
         try
         {
+            TryApplyLoaderPath();
             // 先问加载器：它找到的运行时就是后面真能用的那个。
             // 注意不能先查 WebView2Loader.dll 再决定——插件打包方式可能把原生库放在
             // runtimes/<rid>/native 等不同位置，先看文件容易「其实能用却报不可用」。

@@ -720,14 +720,28 @@
                         <controls2:SettingsExpanderItem Content="背景类型"
                                                         Description="大屏背景从哪里来。">
                             <controls2:SettingsExpanderItem.Footer>
-                                <ComboBox SelectedIndex="{Binding BackgroundKindIndex}" FontSize="13"
-                                          MinWidth="180">
-                                    <ComboBoxItem Content="提取当前壁纸"/>
-                                    <ComboBoxItem Content="纯色背景"/>
-                                    <ComboBoxItem Content="自定义图片"/>
-                                    <ComboBoxItem Content="原生实时模糊"/>
-                                    <ComboBoxItem Content="网页（WebView2）"/>
-                                </ComboBox>
+                                <StackPanel Spacing="6">
+                                    <ComboBox SelectedIndex="{Binding BackgroundKindIndex}" FontSize="13"
+                                              MinWidth="180">
+                                        <ComboBoxItem Content="提取当前壁纸"/>
+                                        <ComboBoxItem Content="纯色背景"/>
+                                        <ComboBoxItem Content="自定义图片"/>
+                                        <ComboBoxItem Content="原生实时模糊"/>
+                                        <ComboBoxItem Content="网页（WebView2）"/>
+                                    </ComboBox>
+                                    <!-- 切到网页背景被拦下时（WebView2 不可用）在这里说清楚原因，
+                                         并提供「重新检测」——运行时可能是 CI 开着的时候才装上的。 -->
+                                    <StackPanel Orientation="Horizontal" Spacing="8"
+                                                IsVisible="{Binding HasBackgroundKindHint}">
+                                        <TextBlock Text="{Binding BackgroundKindHint}" FontSize="11"
+                                                   TextWrapping="Wrap" MaxWidth="360"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                        <Button Content="重新检测" FontSize="12" Padding="10,4"
+                                                CornerRadius="6" Cursor="Hand"
+                                                Click="RefreshWebView2_Click"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </controls2:SettingsExpanderItem.Footer>
                         </controls2:SettingsExpanderItem>
 
