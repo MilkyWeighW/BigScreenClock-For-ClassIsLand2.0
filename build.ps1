@@ -140,7 +140,7 @@ function Stop-Build {
         [switch]$ShowOfflineHint
     )
     Write-Host ''
-    Write-Host "✗ $Message" -ForegroundColor Red
+    Write-Host "? $Message" -ForegroundColor Red
     if ($ShowOfflineHint) { Show-OfflineHint }
     exit $ExitCode
 }
